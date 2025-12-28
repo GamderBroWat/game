@@ -271,12 +271,25 @@ function draw(){
 
   if(enemyVisible()){
     ctx.drawImage(enemy.img,enemy.x,enemy.y,enemy.size,enemy.size);
-    if(enemy.maxHp>1){
-      ctx.fillStyle="red";
-      ctx.fillRect(enemy.x,enemy.y-15,enemy.size,8);
-      ctx.fillStyle="lime";
-      ctx.fillRect(enemy.x,enemy.y-15,enemy.size*(enemy.hp/enemy.maxHp),8);
-    }
+
+    /* ===== HP BAR ===== */
+    let barWidth =
+      enemy.type === "beshik"
+        ? enemy.size / 3     // 🔥 в 3 раза короче
+        : enemy.size;
+
+    let barX = enemy.x + (enemy.size - barWidth) / 2;
+
+    ctx.fillStyle="red";
+    ctx.fillRect(barX,enemy.y-15,barWidth,8);
+
+    ctx.fillStyle="lime";
+    ctx.fillRect(
+      barX,
+      enemy.y-15,
+      barWidth*(enemy.hp/enemy.maxHp),
+      8
+    );
   }
 
   bullets.forEach(b=>ctx.drawImage(bulletImg,b.x,b.y,b.size,b.size));
