@@ -14,8 +14,23 @@ html,body{
   overflow:hidden;
   background:#5c94fc;
   touch-action:none;
+  height:100%;
 }
 canvas{display:block}
+
+/* ROTATE SCREEN */
+#rotateHint{
+  position:fixed;
+  inset:0;
+  background:#5c94fc;
+  color:white;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:24px;
+  z-index:999;
+  text-align:center;
+}
 
 /* TOUCH CONTROLS */
 .controls{
@@ -50,6 +65,8 @@ canvas{display:block}
 </head>
 <body>
 
+<div id="rotateHint">Поверни телефон горизонтально 📱↔</div>
+
 <canvas id="game"></canvas>
 
 <div class="controls">
@@ -60,10 +77,16 @@ canvas{display:block}
 </div>
 
 <script>
+/* ================= FULLSCREEN LIKE ================= */
+function hideAddressBar(){
+  setTimeout(()=>{
+    window.scrollTo(0,1);
+  },100);
+}
+
 /* ================= CANVAS ================= */
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
-const DPR = window.devicePixelRatio || 1;
 
 let FLOOR;
 
@@ -77,11 +100,6 @@ const eatSound  = new Audio("voice.mp3");
 let assetsLoaded = false;
 function loadAssets(){
   if(assetsLoaded) return;
-  playerImg.crossOrigin="anonymous";
-  milkImg.crossOrigin="anonymous";
-  enemyImg.crossOrigin="anonymous";
-  bulletImg.crossOrigin="anonymous";
-
   playerImg.src="photo.png";
   milkImg.src="milk.png";
   enemyImg.src="doctor.png";
@@ -93,7 +111,7 @@ function loadAssets(){
 /* ================= PLAYER ================= */
 const player = {
   x: 100,
-  size: 150,        // уменьшен в 2 раза
+  size: 150,
   y: 0,
   vx: 0,
   vy: 0,
@@ -102,17 +120,15 @@ const player = {
   onGround: false
 };
 
-/* ================= RESIZE ================= */
+/* ================= AUTO SCALE ================= */
 function resize(){
-  canvas.width  = innerWidth * DPR;
-  canvas.height = innerHeight * DPR;
-  canvas.style.width  = innerWidth + "px";
-  canvas.style.height = innerHeight + "px";
-  ctx.setTransform(DPR,0,0,DPR,0,0);
+  const w = innerWidth;
+  const h = innerHeight;
 
-  FLOOR = innerHeight * 0.85;
+  canvas.width = w;
+  canvas.height = h;
+  FLOOR = h * 0.85;
 
-  // ГАРАНТИРОВАННО СТАВИМ ИГРОКА НА ЗЕМЛЮ
   player.y = FLOOR - player.size;
   player.vy = 0;
   player.onGround = true;
@@ -228,10 +244,10 @@ function collide(a,b){
 /* ================= DRAW ================= */
 function draw(){
   ctx.fillStyle="#5c94fc";
-  ctx.fillRect(0,0,innerWidth,innerHeight);
+  ctx.fillRect(0,0,canvas.width,canvas.height);
 
   ctx.fillStyle="#3cb043";
-  ctx.fillRect(0,FLOOR,innerWidth,innerHeight);
+  ctx.fillRect(0,FLOOR,canvas.width,canvas.height);
 
   ctx.imageSmoothingEnabled=false;
   ctx.drawImage(playerImg,player.x,player.y,player.size,player.size);
@@ -263,15 +279,29 @@ function loop(){
 
 function startGame(){
   if(started) return;
+  hideAddressBar();
   loadAssets();
   resize();
   started=true;
   loop();
 }
 
-document.addEventListener("touchstart", startGame, {once:true});
-if(innerWidth > innerHeight) startGame();
+/* ================= ORIENTATION CONTROL ================= */
+const hint = document.getElementById("rotateHint");
 
+function checkOrientation(){
+  if(innerWidth > innerHeight){
+    hint.style.display="none";
+    startGame();
+  }else{
+    hint.style.display="flex";
+  }
+}
+
+addEventListener("resize", checkOrientation);
+addEventListener("orientationchange", checkOrientation);
+
+checkOrientation();
 </script>
 </body>
 </html>
