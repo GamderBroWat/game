@@ -35,34 +35,37 @@ canvas{display:block}
 /* TOUCH CONTROLS */
 .controls{
   position:fixed;
-  bottom:20px;
+  bottom:10px;
   left:0;
   right:0;
-  height:160px;
+  height:120px;
   pointer-events:none;
 }
 
 .btn{
   pointer-events:auto;
   position:absolute;
-  width:105px;
-  height:105px;
+  width:70px;
+  height:70px;
   border-radius:50%;
   background:rgba(0,0,0,.4);
   color:white;
-  font-size:32px;
+  font-size:20px;
   display:flex;
   align-items:center;
   justify-content:center;
   user-select:none;
 }
 
-.btn:active{background:rgba(255,255,255,.4)}
+.btn:active{
+  background:rgba(255,255,255,.4);
+}
 
 #left{left:20px;bottom:20px}
-#right{left:140px;bottom:20px}
-#jump{right:140px;bottom:20px}
+#right{left:110px;bottom:20px}
+#jump{right:110px;bottom:20px}
 #shoot{right:20px;bottom:20px}
+
 </style>
 </head>
 <body>
@@ -306,3 +309,4 @@ checkOrientation();
 </script>
 </body>
 </html>
+
