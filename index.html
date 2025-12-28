@@ -56,16 +56,12 @@ canvas{display:block}
   justify-content:center;
   user-select:none;
 }
-
-.btn:active{
-  background:rgba(255,255,255,.4);
-}
+.btn:active{background:rgba(255,255,255,.4)}
 
 #left{left:20px;bottom:20px}
 #right{left:110px;bottom:20px}
 #jump{right:110px;bottom:20px}
 #shoot{right:20px;bottom:20px}
-
 </style>
 </head>
 <body>
@@ -100,7 +96,7 @@ const enemyImg  = new Image();
 const bulletImg = new Image();
 const eatSound  = new Audio("voice.mp3");
 
-let assetsLoaded = false;
+let assetsLoaded=false;
 function loadAssets(){
   if(assetsLoaded) return;
   playerImg.src="photo.png";
@@ -108,39 +104,37 @@ function loadAssets(){
   enemyImg.src="doctor.png";
   bulletImg.src="bez.png";
   eatSound.load();
-  assetsLoaded = true;
+  assetsLoaded=true;
 }
 
 /* ================= PLAYER ================= */
 const player = {
-  x: 100,
-  size: 150,
-  y: 0,
-  vx: 0,
-  vy: 0,
-  speed: 5,
-  jump: -18,
-  onGround: false
+  x:100,
+  size:150,
+  y:0,
+  vx:0,
+  vy:0,
+  speed:5,
+  jump:-18,
+  onGround:false
 };
 
-/* ================= AUTO SCALE ================= */
+const PLAYER_Y_OFFSET = player.size * 0.2;
+
+/* ================= RESIZE ================= */
 function resize(){
-  const w = innerWidth;
-  const h = innerHeight;
+  canvas.width = innerWidth;
+  canvas.height = innerHeight;
+  FLOOR = innerHeight * 0.85;
 
-  canvas.width = w;
-  canvas.height = h;
-
-  FLOOR = h * 0.85;
-
-  player.y = FLOOR - player.size;
+  player.y = FLOOR - player.size + PLAYER_Y_OFFSET;
   player.vy = 0;
   player.onGround = true;
 }
 addEventListener("resize", resize);
 
 /* ================= INPUT ================= */
-const input = {left:false,right:false,jump:false,shoot:false};
+const input={left:false,right:false,jump:false,shoot:false};
 function bind(id,key){
   const el=document.getElementById(id);
   el.addEventListener("touchstart",e=>{
@@ -155,68 +149,69 @@ bind("jump","jump");
 bind("shoot","shoot");
 
 /* ================= OBJECTS ================= */
-const milks = [];
-const bullets = [];
-let enemy = null;
-let lastShot = 0;
+const milks=[];
+const bullets=[];
+let enemy=null;
+let lastShot=0;
 
 /* ================= SPAWN ================= */
 setInterval(()=>{
   milks.push({
-    x: innerWidth + 100,
-    y: FLOOR - 100,
-    size: 100,
-    vx: -3
+    x:innerWidth+100,
+    y:FLOOR-100+PLAYER_Y_OFFSET,
+    size:100,
+    vx:-3
   });
 },5000);
 
 function spawnEnemy(){
-  enemy = {
-    x: innerWidth + 200,
-    y: FLOOR - 120,
-    size: 120,
-    vx: -2,
-    hp: 3,
-    alive: true
+  enemy={
+    x:innerWidth+300,
+    y:FLOOR-120+PLAYER_Y_OFFSET,
+    size:120,
+    vx:-2,
+    hp:3,
+    alive:true
   };
 }
 spawnEnemy();
 setInterval(spawnEnemy,12000);
 
 /* ================= GAME ================= */
-const GRAVITY = 0.8;
+const GRAVITY=0.8;
 
 function update(){
-  player.vx = 0;
-  if(input.left)  player.vx = -player.speed;
-  if(input.right) player.vx =  player.speed;
+  player.vx=0;
+  if(input.left) player.vx=-player.speed;
+  if(input.right) player.vx=player.speed;
 
   if(input.jump && player.onGround){
-    player.vy = player.jump;
-    player.onGround = false;
+    player.vy=player.jump;
+    player.onGround=false;
   }
 
-  if(input.shoot && performance.now() - lastShot > 1000){
+  if(input.shoot && performance.now()-lastShot>2000){
     bullets.push({
-      x: player.x + player.size,
-      y: player.y + player.size/2 - 20,
-      size: 80,
-      vx: 4
+      x:player.x+player.size,
+      y:player.y+player.size/2-20,
+      size:80,
+      vx:6
     });
-    lastShot = performance.now();
+    lastShot=performance.now();
   }
 
-  player.vy += GRAVITY;
-  player.x  += player.vx;
-  player.y  += player.vy;
+  player.vy+=GRAVITY;
+  player.x+=player.vx;
+  player.y+=player.vy;
 
-  if(player.y + player.size >= FLOOR){
-    player.y = FLOOR - player.size;
+  if(player.y+player.size-PLAYER_Y_OFFSET>=FLOOR){
+    player.y = FLOOR - player.size + PLAYER_Y_OFFSET;
     player.vy = 0;
     player.onGround = true;
   }
 
-  milks.forEach(m => m.x += m.vx);
+  milks.forEach(m=>m.x+=m.vx);
+
   for(let i=milks.length-1;i>=0;i--){
     if(collide(player,milks[i])){
       eatSound.currentTime=0;
@@ -225,9 +220,12 @@ function update(){
     }
   }
 
-  if(enemy && enemy.alive) enemy.x += enemy.vx;
+  if(enemy && enemy.alive){
+    enemy.x+=enemy.vx;
+  }
 
   bullets.forEach(b=>b.x+=b.vx);
+
   for(let i=bullets.length-1;i>=0;i--){
     if(enemy && enemy.alive && collide(bullets[i],enemy)){
       enemy.hp--;
@@ -250,16 +248,13 @@ function draw(){
   ctx.fillStyle="#5c94fc";
   ctx.fillRect(0,0,canvas.width,canvas.height);
 
-  /* GROUND */
   ctx.fillStyle="#3cb043";
   ctx.fillRect(0,FLOOR,canvas.width,canvas.height-FLOOR);
 
   ctx.imageSmoothingEnabled=false;
   ctx.drawImage(playerImg,player.x,player.y,player.size,player.size);
 
-  milks.forEach(m=>{
-    ctx.drawImage(milkImg,m.x,m.y,m.size,m.size);
-  });
+  milks.forEach(m=>ctx.drawImage(milkImg,m.x,m.y,m.size,m.size));
 
   if(enemy && enemy.alive){
     ctx.drawImage(enemyImg,enemy.x,enemy.y,enemy.size,enemy.size);
@@ -269,9 +264,7 @@ function draw(){
     ctx.fillRect(enemy.x,enemy.y-15,enemy.size*(enemy.hp/3),8);
   }
 
-  bullets.forEach(b=>{
-    ctx.drawImage(bulletImg,b.x,b.y,b.size,b.size);
-  });
+  bullets.forEach(b=>ctx.drawImage(bulletImg,b.x,b.y,b.size,b.size));
 }
 
 /* ================= LOOP ================= */
@@ -292,21 +285,18 @@ function startGame(){
 }
 
 /* ================= ORIENTATION ================= */
-const hint = document.getElementById("rotateHint");
-
+const hint=document.getElementById("rotateHint");
 function checkOrientation(){
-  if(innerWidth > innerHeight){
+  if(innerWidth>innerHeight){
     hint.style.display="none";
     startGame();
   }else{
     hint.style.display="flex";
   }
 }
-
-addEventListener("resize", checkOrientation);
-addEventListener("orientationchange", checkOrientation);
+addEventListener("resize",checkOrientation);
+addEventListener("orientationchange",checkOrientation);
 checkOrientation();
 </script>
 </body>
 </html>
-
