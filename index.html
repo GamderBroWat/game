@@ -202,7 +202,7 @@ function update(){
     player.onGround=false;
   }
 
-  if(input.shoot && performance.now()-lastShot>1500){
+  if(input.shoot && performance.now()-lastShot>1000){
     bullets.push({
       x:player.x+player.size,
       y:player.y+player.size/2-20,
@@ -328,3 +328,4 @@ checkOrientation();
 </script>
 </body>
 </html>
+
