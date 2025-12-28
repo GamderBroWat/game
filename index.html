@@ -4,7 +4,8 @@
 <meta charset="UTF-8">
 <title>Mario Mobile</title>
 
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport"
+content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 
 <style>
 html,body{
@@ -16,7 +17,7 @@ html,body{
 }
 canvas{display:block}
 
-/* MOBILE CONTROLS */
+/* TOUCH CONTROLS */
 .controls{
   position:fixed;
   bottom:10px;
@@ -28,22 +29,22 @@ canvas{display:block}
 .btn{
   pointer-events:auto;
   position:absolute;
-  width:80px;
-  height:80px;
+  width:70px;
+  height:70px;
   border-radius:50%;
-  background:rgba(0,0,0,0.4);
+  background:rgba(0,0,0,.4);
   color:white;
-  font-size:18px;
+  font-size:20px;
   display:flex;
   align-items:center;
   justify-content:center;
   user-select:none;
 }
-.btn:active{background:rgba(255,255,255,0.4)}
+.btn:active{background:rgba(255,255,255,.4)}
 
 #left{left:20px;bottom:20px}
-#right{left:120px;bottom:20px}
-#jump{right:120px;bottom:20px}
+#right{left:110px;bottom:20px}
+#jump{right:110px;bottom:20px}
 #shoot{right:20px;bottom:20px}
 </style>
 </head>
@@ -59,30 +60,73 @@ canvas{display:block}
 </div>
 
 <script>
-const canvas=document.getElementById("game");
-const ctx=canvas.getContext("2d");
+/* ================= CANVAS ================= */
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+const DPR = window.devicePixelRatio || 1;
 
-const DPR=window.devicePixelRatio||1;
-function resize(){
-  canvas.width=innerWidth*DPR;
-  canvas.height=innerHeight*DPR;
-  canvas.style.width=innerWidth+"px";
-  canvas.style.height=innerHeight+"px";
-  ctx.setTransform(DPR,0,0,DPR,0,0);
+let FLOOR;
+
+/* ================= ASSETS ================= */
+const playerImg = new Image();
+const milkImg   = new Image();
+const enemyImg  = new Image();
+const bulletImg = new Image();
+const eatSound  = new Audio("voice.mp3");
+
+let assetsLoaded = false;
+function loadAssets(){
+  if(assetsLoaded) return;
+  playerImg.crossOrigin="anonymous";
+  milkImg.crossOrigin="anonymous";
+  enemyImg.crossOrigin="anonymous";
+  bulletImg.crossOrigin="anonymous";
+
+  playerImg.src="photo.png";
+  milkImg.src="milk.png";
+  enemyImg.src="doctor.png";
+  bulletImg.src="bez.png";
+  eatSound.load();
+  assetsLoaded = true;
 }
-addEventListener("resize",resize);
-resize();
 
-const FLOOR=innerHeight*0.85;
-const GRAVITY=0.8;
+/* ================= PLAYER ================= */
+const player = {
+  x: 100,
+  size: 150,        // уменьшен в 2 раза
+  y: 0,
+  vx: 0,
+  vy: 0,
+  speed: 5,
+  jump: -18,
+  onGround: false
+};
 
-// INPUT STATE
-const input={left:false,right:false,jump:false,shoot:false};
+/* ================= RESIZE ================= */
+function resize(){
+  canvas.width  = innerWidth * DPR;
+  canvas.height = innerHeight * DPR;
+  canvas.style.width  = innerWidth + "px";
+  canvas.style.height = innerHeight + "px";
+  ctx.setTransform(DPR,0,0,DPR,0,0);
 
-// TOUCH BUTTONS
+  FLOOR = innerHeight * 0.85;
+
+  // ГАРАНТИРОВАННО СТАВИМ ИГРОКА НА ЗЕМЛЮ
+  player.y = FLOOR - player.size;
+  player.vy = 0;
+  player.onGround = true;
+}
+addEventListener("resize", resize);
+
+/* ================= INPUT ================= */
+const input = {left:false,right:false,jump:false,shoot:false};
 function bind(id,key){
   const el=document.getElementById(id);
-  el.addEventListener("touchstart",e=>{e.preventDefault();input[key]=true},{passive:false});
+  el.addEventListener("touchstart",e=>{
+    e.preventDefault();
+    input[key]=true;
+  },{passive:false});
   el.addEventListener("touchend",()=>input[key]=false);
 }
 bind("left","left");
@@ -90,101 +134,98 @@ bind("right","right");
 bind("jump","jump");
 bind("shoot","shoot");
 
-// IMAGES
-const playerImg=new Image();playerImg.src="photo.png";
-const milkImg=new Image();milkImg.src="milk.png";
-const enemyImg=new Image();enemyImg.src="doctor.png";
-const bulletImg=new Image();bulletImg.src="bez.png";
+/* ================= OBJECTS ================= */
+const milks = [];
+const bullets = [];
+let enemy = null;
+let lastShot = 0;
 
-// SOUND
-const eatSound=new Audio("voice.mp3");
-
-// PLAYER
-const player={
-  x:100,size:300,
-  y:FLOOR-300,
-  vx:0,vy:0,
-  speed:6,jump:-22,
-  onGround:true
-};
-
-// MILK
-const milks=[];
+/* ================= SPAWN ================= */
 setInterval(()=>{
-  milks.push({x:innerWidth+200,y:FLOOR-260,size:200,vx:-3});
+  milks.push({
+    x: innerWidth + 100,
+    y: FLOOR - 130,
+    size: 100,
+    vx: -3
+  });
 },5000);
 
-// ENEMY
-let enemy=null;
 function spawnEnemy(){
-  enemy={x:innerWidth+300,y:FLOOR-240,size:240,vx:-2,hp:3,alive:true};
+  enemy = {
+    x: innerWidth + 200,
+    y: FLOOR - 120,
+    size: 120,
+    vx: -2,
+    hp: 3,
+    alive: true
+  };
 }
 spawnEnemy();
 setInterval(spawnEnemy,12000);
 
-// BULLETS
-const bullets=[];
-let lastShot=0;
+/* ================= GAME ================= */
+const GRAVITY = 0.8;
 
-// UPDATE
 function update(){
-  player.vx=0;
-  if(input.left) player.vx=-player.speed;
-  if(input.right) player.vx=player.speed;
+  player.vx = 0;
+  if(input.left)  player.vx = -player.speed;
+  if(input.right) player.vx =  player.speed;
 
   if(input.jump && player.onGround){
-    player.vy=player.jump;
-    player.onGround=false;
+    player.vy = player.jump;
+    player.onGround = false;
   }
 
-  if(input.shoot && performance.now()-lastShot>1000){
+  if(input.shoot && performance.now() - lastShot > 1000){
     bullets.push({
-      x:player.x+player.size,
-      y:player.y+player.size/2-40,
-      size:160,
-      vx:6
+      x: player.x + player.size,
+      y: player.y + player.size/2 - 20,
+      size: 80,
+      vx: 4
     });
-    lastShot=performance.now();
+    lastShot = performance.now();
   }
 
-  player.vy+=GRAVITY;
-  player.x+=player.vx;
-  player.y+=player.vy;
-  if(player.y+player.size>=FLOOR){
-    player.y=FLOOR-player.size;
-    player.vy=0;
-    player.onGround=true;
+  player.vy += GRAVITY;
+  player.x  += player.vx;
+  player.y  += player.vy;
+
+  if(player.y + player.size >= FLOOR){
+    player.y = FLOOR - player.size;
+    player.vy = 0;
+    player.onGround = true;
   }
 
-  milks.forEach(m=>m.x+=m.vx);
+  milks.forEach(m => m.x += m.vx);
   for(let i=milks.length-1;i>=0;i--){
     if(collide(player,milks[i])){
-      eatSound.currentTime=0;eatSound.play().catch(()=>{});
-      const old=player.size;
-      player.size*=1.1;
-      player.y+=old-player.size;
-      player.y=FLOOR-player.size;
+      eatSound.currentTime=0;
+      eatSound.play().catch(()=>{});
       milks.splice(i,1);
     }
   }
 
-  if(enemy&&enemy.alive) enemy.x+=enemy.vx;
+  if(enemy && enemy.alive) enemy.x += enemy.vx;
 
   bullets.forEach(b=>b.x+=b.vx);
   for(let i=bullets.length-1;i>=0;i--){
-    if(enemy&&enemy.alive&&collide(bullets[i],enemy)){
-      enemy.hp--;bullets.splice(i,1);
+    if(enemy && enemy.alive && collide(bullets[i],enemy)){
+      enemy.hp--;
+      bullets.splice(i,1);
       if(enemy.hp<=0) enemy.alive=false;
     }
   }
 }
 
-// COLLISION
+/* ================= COLLISION ================= */
 function collide(a,b){
-  return a.x<b.x+b.size&&a.x+a.size>b.x&&a.y<b.y+b.size&&a.y+a.size>b.y;
+  return a.x < b.x + b.size &&
+         a.x + a.size > b.x &&
+         a.y < b.y + b.size &&
+         a.y + a.size > b.y;
 }
 
-// DRAW
+/* ================= DRAW ================= */
 function draw(){
   ctx.fillStyle="#5c94fc";
   ctx.fillRect(0,0,innerWidth,innerHeight);
@@ -195,25 +236,42 @@ function draw(){
   ctx.imageSmoothingEnabled=false;
   ctx.drawImage(playerImg,player.x,player.y,player.size,player.size);
 
-  milks.forEach(m=>ctx.drawImage(milkImg,m.x,m.y,m.size,m.size));
+  milks.forEach(m=>{
+    ctx.drawImage(milkImg,m.x,m.y,m.size,m.size);
+  });
 
-  if(enemy&&enemy.alive){
+  if(enemy && enemy.alive){
     ctx.drawImage(enemyImg,enemy.x,enemy.y,enemy.size,enemy.size);
     ctx.fillStyle="red";
-    ctx.fillRect(enemy.x,enemy.y-20,enemy.size,10);
+    ctx.fillRect(enemy.x,enemy.y-15,enemy.size,8);
     ctx.fillStyle="lime";
-    ctx.fillRect(enemy.x,enemy.y-20,enemy.size*(enemy.hp/3),10);
+    ctx.fillRect(enemy.x,enemy.y-15,enemy.size*(enemy.hp/3),8);
   }
 
-  bullets.forEach(b=>ctx.drawImage(bulletImg,b.x,b.y,b.size,b.size));
+  bullets.forEach(b=>{
+    ctx.drawImage(bulletImg,b.x,b.y,b.size,b.size);
+  });
 }
 
+/* ================= LOOP ================= */
+let started=false;
 function loop(){
-  update();draw();
+  update();
+  draw();
   requestAnimationFrame(loop);
 }
-loop();
-</script>
 
+function startGame(){
+  if(started) return;
+  loadAssets();
+  resize();
+  started=true;
+  loop();
+}
+
+document.addEventListener("touchstart", startGame, {once:true});
+if(innerWidth > innerHeight) startGame();
+
+</script>
 </body>
 </html>
