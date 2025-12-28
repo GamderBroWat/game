@@ -41,7 +41,6 @@ canvas{display:block}
   height:120px;
   pointer-events:none;
 }
-
 .btn{
   pointer-events:auto;
   position:absolute;
@@ -120,7 +119,6 @@ const player={
   jump:-18,
   onGround:false
 };
-
 const PLAYER_Y_OFFSET = player.size * 0.2;
 
 /* ================= RESIZE ================= */
@@ -173,8 +171,8 @@ function spawnEnemy(){
     type:isBeshik?"beshik":"doctor",
     img:isBeshik?beshikImg:enemyImg,
     x:innerWidth+300,
-    y:FLOOR-(isBeshik?100:120)+PLAYER_Y_OFFSET,
-    size:isBeshik?100:120,
+    y:FLOOR-(isBeshik?200:120)+PLAYER_Y_OFFSET,
+    size:isBeshik?200:120,
     vx:isBeshik?-3:-2,
     hp:isBeshik?1:3,
     maxHp:isBeshik?1:3,
@@ -217,14 +215,12 @@ function update(){
   player.vy+=GRAVITY;
   player.x+=player.vx;
 
-  /* 🔒 ГРАНИЦЫ ЭКРАНА */
-  if(player.x < 0) player.x = 0;
-  if(player.x + player.size > canvas.width){
-    player.x = canvas.width - player.size;
+  if(player.x<0) player.x=0;
+  if(player.x+player.size>canvas.width){
+    player.x=canvas.width-player.size;
   }
 
   player.y+=player.vy;
-
   if(player.y+player.size-PLAYER_Y_OFFSET>=FLOOR){
     player.y=FLOOR-player.size+PLAYER_Y_OFFSET;
     player.vy=0;
@@ -240,10 +236,7 @@ function update(){
     }
   }
 
-  if(enemy && enemy.alive){
-    enemy.x+=enemy.vx;
-  }
-
+  if(enemy && enemy.alive) enemy.x+=enemy.vx;
   bullets.forEach(b=>b.x+=b.vx);
 
   for(let i=bullets.length-1;i>=0;i--){
@@ -257,10 +250,10 @@ function update(){
 
 /* ================= COLLISION ================= */
 function collide(a,b){
-  return a.x < b.x + b.size &&
-         a.x + a.size > b.x &&
-         a.y < b.y + b.size &&
-         a.y + a.size > b.y;
+  return a.x<b.x+b.size &&
+         a.x+a.size>b.x &&
+         a.y<b.y+b.size &&
+         a.y+a.size>b.y;
 }
 
 /* ================= DRAW ================= */
@@ -278,17 +271,11 @@ function draw(){
 
   if(enemyVisible()){
     ctx.drawImage(enemy.img,enemy.x,enemy.y,enemy.size,enemy.size);
-
     if(enemy.maxHp>1){
       ctx.fillStyle="red";
       ctx.fillRect(enemy.x,enemy.y-15,enemy.size,8);
       ctx.fillStyle="lime";
-      ctx.fillRect(
-        enemy.x,
-        enemy.y-15,
-        enemy.size*(enemy.hp/enemy.maxHp),
-        8
-      );
+      ctx.fillRect(enemy.x,enemy.y-15,enemy.size*(enemy.hp/enemy.maxHp),8);
     }
   }
 
