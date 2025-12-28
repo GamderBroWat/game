@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Mario Shooter</title>
+<style>
+html,body{margin:0;padding:0;overflow:hidden;background:#5c94fc}
+canvas{display:block}
+</style>
+</head>
+<body>
+
+<canvas id="game"></canvas>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+const DPR = devicePixelRatio || 1;
+function resize(){
+  canvas.width = innerWidth * DPR;
+  canvas.height = innerHeight * DPR;
+  canvas.style.width = innerWidth+"px";
+  canvas.style.height = innerHeight+"px";
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+addEventListener("resize",resize);
+resize();
+
+const FLOOR = innerHeight * 0.85;
+const GRAVITY = 0.8;
+
+// INPUT
+const keys = {};
+addEventListener("keydown",e=>keys[e.code]=true);
+addEventListener("keyup",e=>keys[e.code]=false);
+
+// IMAGES
+const playerImg = new Image(); playerImg.src="photo.png";
+const milkImg   = new Image(); milkImg.src="milk.png";
+const enemyImg  = new Image(); enemyImg.src="doctor.png";
+const bulletImg = new Image(); bulletImg.src="bez.png";
+
+// SOUND
+const eatSound = new Audio("voice.mp3");
+
+// PLAYER
+const player = {
+  x:150,
+  size:300,
+  y:FLOOR-300,
+  vx:0, vy:0,
+  speed:6, jump:-22,
+  onGround:true
+};
+
+// MILK
+const milks=[];
+setInterval(()=>{
+  milks.push({
+    x:innerWidth+200,
+    y:FLOOR-260,
+    size:200,
+    vx:-3
+  });
+},5000);
+
+// ENEMY
+let enemy = null;
+
+// BULLETS
+const bullets=[];
+let lastShot = 0;
+
+// SPAWN ENEMY EVERY 12s
+function spawnEnemy(){
+  enemy = {
+    x: innerWidth + 300,
+    y: FLOOR - 240,
+    size: 240,
+    vx: -2,
+    hp: 3,
+    alive: true
+  };
+}
+spawnEnemy();
+setInterval(spawnEnemy,12000);
+
+// UPDATE
+function update(){
+  // PLAYER INPUT
+  player.vx=0;
+  if(keys["ArrowLeft"]||keys["KeyA"]) player.vx=-player.speed;
+  if(keys["ArrowRight"]||keys["KeyD"]) player.vx=player.speed;
+  if((keys["Space"]||keys["KeyW"]||keys["ArrowUp"]) && player.onGround){
+    player.vy=player.jump;
+    player.onGround=false;
+  }
+
+  // SHOOT (F) — скорость ↓ В 2 РАЗА
+  if(keys["KeyF"] && performance.now()-lastShot>1000){
+    bullets.push({
+      x: player.x + player.size,
+      y: player.y + player.size/2 - 40,
+      size: 160,
+      vx: 6   // ⬅️ БЫЛО 12
+    });
+    lastShot = performance.now();
+  }
+
+  // PHYSICS
+  player.vy+=GRAVITY;
+  player.x+=player.vx;
+  player.y+=player.vy;
+  if(player.y+player.size>=FLOOR){
+    player.y=FLOOR-player.size;
+    player.vy=0;
+    player.onGround=true;
+  }
+
+  // MILK
+  milks.forEach(m=>m.x+=m.vx);
+  for(let i=milks.length-1;i>=0;i--){
+    if(collide(player,milks[i])){
+      eatSound.currentTime=0;
+      eatSound.play().catch(()=>{});
+      const old=player.size;
+      player.size*=1.1;
+      player.y+=old-player.size;
+      player.y=FLOOR-player.size;
+      milks.splice(i,1);
+    }
+  }
+
+  // ENEMY
+  if(enemy && enemy.alive){
+    enemy.x+=enemy.vx;
+  }
+
+  // BULLETS
+  bullets.forEach(b=>b.x+=b.vx);
+  for(let i=bullets.length-1;i>=0;i--){
+    const b=bullets[i];
+    if(enemy && enemy.alive && collide(b,enemy)){
+      enemy.hp--;
+      bullets.splice(i,1);
+      if(enemy.hp<=0){
+        enemy.alive=false;
+      }
+    } else if(b.x>innerWidth+300){
+      bullets.splice(i,1);
+    }
+  }
+}
+
+// COLLISION
+function collide(a,b){
+  return a.x < b.x + b.size &&
+         a.x + a.size > b.x &&
+         a.y < b.y + b.size &&
+         a.y + a.size > b.y;
+}
+
+// DRAW
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  ctx.fillStyle="#5c94fc";
+  ctx.fillRect(0,0,innerWidth,innerHeight);
+
+  ctx.fillStyle="#3cb043";
+  ctx.fillRect(0,FLOOR,innerWidth,innerHeight);
+
+  ctx.imageSmoothingEnabled=false;
+  ctx.drawImage(playerImg,player.x,player.y,player.size,player.size);
+
+  milks.forEach(m=>{
+    ctx.drawImage(milkImg,m.x,m.y,m.size,m.size);
+  });
+
+  if(enemy && enemy.alive){
+    ctx.drawImage(enemyImg,enemy.x,enemy.y,enemy.size,enemy.size);
+
+    ctx.fillStyle="red";
+    ctx.fillRect(enemy.x,enemy.y-20,enemy.size,10);
+    ctx.fillStyle="lime";
+    ctx.fillRect(enemy.x,enemy.y-20,enemy.size*(enemy.hp/3),10);
+  }
+
+  bullets.forEach(b=>{
+    ctx.drawImage(bulletImg,b.x,b.y,b.size,b.size);
+  });
+
+  ctx.fillStyle="white";
+  ctx.font="16px Arial";
+  ctx.fillText("F — стрельба | скорость пули уменьшена ×2",20,30);
+}
+
+// LOOP
+function loop(){
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+
+</body>
+</html>
