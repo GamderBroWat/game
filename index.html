@@ -18,7 +18,6 @@ html,body{
 }
 canvas{display:block}
 
-/* ROTATE SCREEN */
 #rotateHint{
   position:fixed;
   inset:0;
@@ -32,7 +31,6 @@ canvas{display:block}
   text-align:center;
 }
 
-/* TOUCH CONTROLS */
 .controls{
   position:fixed;
   bottom:10px;
@@ -66,7 +64,6 @@ canvas{display:block}
 <body>
 
 <div id="rotateHint">Поверни телефон горизонтально 📱↔</div>
-
 <canvas id="game"></canvas>
 
 <div class="controls">
@@ -77,24 +74,24 @@ canvas{display:block}
 </div>
 
 <script>
-/* ================= FULLSCREEN LIKE ================= */
+/* FULLSCREEN */
 function hideAddressBar(){
   setTimeout(()=>window.scrollTo(0,1),100);
 }
 
-/* ================= CANVAS ================= */
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
-
+/* CANVAS */
+const canvas=document.getElementById("game");
+const ctx=canvas.getContext("2d");
 let FLOOR;
 
-/* ================= ASSETS ================= */
-const playerImg = new Image();
-const milkImg   = new Image();
-const enemyImg  = new Image();
-const beshikImg = new Image();
-const bulletImg = new Image();
-const eatSound  = new Audio("voice.mp3");
+/* ASSETS */
+const playerImg=new Image();
+const milkImg=new Image();
+const enemyImg=new Image();
+const beshikImg=new Image();
+const bulletImg=new Image();
+const pantherImg=new Image();
+const eatSound=new Audio("voice.mp3");
 
 let assetsLoaded=false;
 function loadAssets(){
@@ -104,11 +101,12 @@ function loadAssets(){
   enemyImg.src="doctor.png";
   beshikImg.src="beshik.png";
   bulletImg.src="bez.png";
+  pantherImg.src="Panther.png";
   eatSound.load();
   assetsLoaded=true;
 }
 
-/* ================= PLAYER ================= */
+/* PLAYER */
 const player={
   x:100,
   size:150,
@@ -119,21 +117,20 @@ const player={
   jump:-18,
   onGround:false
 };
-const PLAYER_Y_OFFSET = player.size * 0.2;
+const PLAYER_Y_OFFSET=player.size*0.2;
 
-/* ================= RESIZE ================= */
+/* RESIZE */
 function resize(){
-  canvas.width = innerWidth;
-  canvas.height = innerHeight;
-  FLOOR = innerHeight * 0.85;
-
-  player.y = FLOOR - player.size + PLAYER_Y_OFFSET;
-  player.vy = 0;
-  player.onGround = true;
+  canvas.width=innerWidth;
+  canvas.height=innerHeight;
+  FLOOR=innerHeight*0.85;
+  player.y=FLOOR-player.size+PLAYER_Y_OFFSET;
+  player.vy=0;
+  player.onGround=true;
 }
-addEventListener("resize", resize);
+addEventListener("resize",resize);
 
-/* ================= INPUT ================= */
+/* INPUT */
 const input={left:false,right:false,jump:false,shoot:false};
 function bind(id,key){
   const el=document.getElementById(id);
@@ -148,13 +145,17 @@ bind("right","right");
 bind("jump","jump");
 bind("shoot","shoot");
 
-/* ================= OBJECTS ================= */
+/* OBJECTS */
 const milks=[];
 const bullets=[];
 let enemy=null;
 let lastShot=0;
 
-/* ================= SPAWN ================= */
+/* PANTHER */
+let panther=null;
+let lastPantherThrow=0;
+
+/* SPAWN MILK */
 setInterval(()=>{
   milks.push({
     x:innerWidth+100,
@@ -164,9 +165,9 @@ setInterval(()=>{
   });
 },5000);
 
+/* ENEMY */
 function spawnEnemy(){
-  const isBeshik = Math.random() < 0.5;
-
+  const isBeshik=Math.random()<0.5;
   enemy={
     type:isBeshik?"beshik":"doctor",
     img:isBeshik?beshikImg:enemyImg,
@@ -182,14 +183,38 @@ function spawnEnemy(){
 spawnEnemy();
 setInterval(spawnEnemy,12000);
 
-/* ================= GAME ================= */
+/* PANTHER SPAWN */
+function spawnPanther(){
+  panther={
+    x:canvas.width+200,
+    y:canvas.height*0.15+Math.random()*(canvas.height*0.25),
+    size:180,
+    vx:-2,
+    alive:true
+  };
+}
+spawnPanther();
+setInterval(spawnPanther,8000);
+
+/* GAME */
 const GRAVITY=0.8;
 
 function enemyVisible(){
-  return enemy &&
-         enemy.alive &&
-         enemy.x + enemy.size > 0 &&
-         enemy.x < canvas.width;
+  return enemy&&enemy.alive&&enemy.x+enemy.size>0&&enemy.x<canvas.width;
+}
+
+function pantherThrowMilk(){
+  if(!panther||!panther.alive) return;
+  const dx=(player.x+player.size/2)-panther.x;
+  const dy=(player.y+player.size/2)-panther.y;
+  const len=Math.hypot(dx,dy);
+  milks.push({
+    x:panther.x,
+    y:panther.y+panther.size/2,
+    size:80,
+    vx:(dx/len)*4,
+    vy:(dy/len)*4
+  });
 }
 
 function update(){
@@ -197,12 +222,12 @@ function update(){
   if(input.left) player.vx=-player.speed;
   if(input.right) player.vx=player.speed;
 
-  if(input.jump && player.onGround){
+  if(input.jump&&player.onGround){
     player.vy=player.jump;
     player.onGround=false;
   }
 
-  if(input.shoot && performance.now()-lastShot>1000){
+  if(input.shoot&&performance.now()-lastShot>1000){
     bullets.push({
       x:player.x+player.size,
       y:player.y+player.size/2-20,
@@ -216,9 +241,8 @@ function update(){
   player.x+=player.vx;
 
   if(player.x<0) player.x=0;
-  if(player.x+player.size>canvas.width){
+  if(player.x+player.size>canvas.width)
     player.x=canvas.width-player.size;
-  }
 
   player.y+=player.vy;
   if(player.y+player.size-PLAYER_Y_OFFSET>=FLOOR){
@@ -227,7 +251,14 @@ function update(){
     player.onGround=true;
   }
 
-  milks.forEach(m=>m.x+=m.vx);
+  milks.forEach(m=>{
+    m.x+=m.vx;
+    if(m.vy!==undefined){
+      m.vy+=0.4;
+      m.y+=m.vy;
+    }
+  });
+
   for(let i=milks.length-1;i>=0;i--){
     if(collide(player,milks[i])){
       eatSound.currentTime=0;
@@ -236,27 +267,36 @@ function update(){
     }
   }
 
-  if(enemy && enemy.alive) enemy.x+=enemy.vx;
+  if(enemy&&enemy.alive) enemy.x+=enemy.vx;
   bullets.forEach(b=>b.x+=b.vx);
 
   for(let i=bullets.length-1;i>=0;i--){
-    if(enemyVisible() && collide(bullets[i],enemy)){
+    if(enemyVisible()&&collide(bullets[i],enemy)){
       enemy.hp--;
       bullets.splice(i,1);
       if(enemy.hp<=0) enemy.alive=false;
     }
   }
+
+  if(panther&&panther.alive){
+    panther.x+=panther.vx;
+    if(performance.now()-lastPantherThrow>2000){
+      pantherThrowMilk();
+      lastPantherThrow=performance.now();
+    }
+    if(panther.x+panther.size<0) panther.alive=false;
+  }
 }
 
-/* ================= COLLISION ================= */
+/* COLLISION */
 function collide(a,b){
-  return a.x<b.x+b.size &&
-         a.x+a.size>b.x &&
-         a.y<b.y+b.size &&
+  return a.x<b.x+b.size&&
+         a.x+a.size>b.x&&
+         a.y<b.y+b.size&&
          a.y+a.size>b.y;
 }
 
-/* ================= DRAW ================= */
+/* DRAW */
 function draw(){
   ctx.fillStyle="#5c94fc";
   ctx.fillRect(0,0,canvas.width,canvas.height);
@@ -267,35 +307,27 @@ function draw(){
   ctx.imageSmoothingEnabled=false;
   ctx.drawImage(playerImg,player.x,player.y,player.size,player.size);
 
+  if(panther&&panther.alive){
+    ctx.drawImage(pantherImg,panther.x,panther.y,panther.size,panther.size);
+    ctx.drawImage(milkImg,panther.x-40,panther.y+panther.size/2,60,60);
+  }
+
   milks.forEach(m=>ctx.drawImage(milkImg,m.x,m.y,m.size,m.size));
 
   if(enemyVisible()){
     ctx.drawImage(enemy.img,enemy.x,enemy.y,enemy.size,enemy.size);
-
-    /* ===== HP BAR ===== */
-    let barWidth =
-      enemy.type === "beshik"
-        ? enemy.size / 3     // 🔥 в 3 раза короче
-        : enemy.size;
-
-    let barX = enemy.x + (enemy.size - barWidth) / 2;
-
+    let barWidth=enemy.type==="beshik"?enemy.size/3:enemy.size;
+    let barX=enemy.x+(enemy.size-barWidth)/2;
     ctx.fillStyle="red";
     ctx.fillRect(barX,enemy.y-15,barWidth,8);
-
     ctx.fillStyle="lime";
-    ctx.fillRect(
-      barX,
-      enemy.y-15,
-      barWidth*(enemy.hp/enemy.maxHp),
-      8
-    );
+    ctx.fillRect(barX,enemy.y-15,barWidth*(enemy.hp/enemy.maxHp),8);
   }
 
   bullets.forEach(b=>ctx.drawImage(bulletImg,b.x,b.y,b.size,b.size));
 }
 
-/* ================= LOOP ================= */
+/* LOOP */
 let started=false;
 function loop(){
   update();
@@ -312,7 +344,7 @@ function startGame(){
   loop();
 }
 
-/* ================= ORIENTATION ================= */
+/* ORIENTATION */
 const hint=document.getElementById("rotateHint");
 function checkOrientation(){
   if(innerWidth>innerHeight){
@@ -328,4 +360,3 @@ checkOrientation();
 </script>
 </body>
 </html>
-
