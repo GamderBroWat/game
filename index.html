@@ -117,15 +117,13 @@ let panther=null;
 function spawnPanther(){
   panther={
     x:canvas.width+200,
-    y:player.y-player.size*1.5, // 🔥 150% ВВЕРХ ОТ ИГРОКА
+    y:canvas.height*0.25,
     size:180,
     vx:-2,
     hasMilk:true,
     alive:true
   };
-  if(panther.y<50) panther.y=50;
 }
-
 setTimeout(()=>{
   spawnPanther();
   setInterval(spawnPanther,8000);
@@ -133,8 +131,10 @@ setTimeout(()=>{
 
 /* ================= GAME ================= */
 const GRAVITY=0.8;
+const MILK_SPEED=5;
 
 function update(){
+  /* PLAYER */
   player.vx=0;
   if(input.left) player.vx=-player.speed;
   if(input.right) player.vx=player.speed;
@@ -148,7 +148,6 @@ function update(){
   player.x+=player.vx;
   player.y+=player.vy;
 
-  /* 🔒 СТЕНЫ */
   if(player.x<0) player.x=0;
   if(player.x+player.size>canvas.width)
     player.x=canvas.width-player.size;
@@ -167,14 +166,15 @@ function update(){
     });
     lastShot=performance.now();
   }
-
   bullets.forEach(b=>b.x+=b.vx);
 
+  /* ENEMY */
   if(enemy&&enemy.alive){
     enemy.x+=enemy.vx;
     bullets.forEach((b,i)=>{
       if(collide(b,enemy)){
-        enemy.hp--;bullets.splice(i,1);
+        enemy.hp--;
+        bullets.splice(i,1);
         if(enemy.hp<=0) enemy.alive=false;
       }
     });
@@ -190,7 +190,19 @@ function update(){
     if(panther.x+panther.size<0) panther.alive=false;
   }
 
-  milks.forEach(m=>{m.x+=m.vx;m.y+=m.vy;});
+  /* 🥛 HOMING MILK */
+  milks.forEach(m=>{
+    if(m.homing){
+      const dx=(player.x+player.size/2)-(m.x);
+      const dy=(player.y+player.size/2)-(m.y);
+      const len=Math.hypot(dx,dy) || 1;
+      m.vx=(dx/len)*MILK_SPEED;
+      m.vy=(dy/len)*MILK_SPEED;
+    }
+    m.x+=m.vx;
+    m.y+=m.vy;
+  });
+
   for(let i=milks.length-1;i>=0;i--){
     if(collide(player,milks[i])){
       eatSound.currentTime=0;
@@ -201,15 +213,12 @@ function update(){
 }
 
 function throwMilk(){
-  const dx=(player.x+player.size/2)-panther.x;
-  const dy=(player.y+player.size/2)-panther.y;
-  const len=Math.hypot(dx,dy);
   milks.push({
     x:panther.x,
     y:panther.y+panther.size/2,
     size:80,
-    vx:(dx/len)*5,
-    vy:(dy/len)*5
+    vx:0,vy:0,
+    homing:true
   });
 }
 
@@ -229,8 +238,15 @@ function draw(){
 
   ctx.drawImage(playerImg,player.x,player.y,player.size,player.size);
 
-  if(enemy&&enemy.alive)
+  if(enemy&&enemy.alive){
     ctx.drawImage(enemy.img,enemy.x,enemy.y,enemy.size,enemy.size);
+    const barW=enemy.type==="beshik"?enemy.size/3:enemy.size;
+    const barX=enemy.x+(enemy.size-barW)/2;
+    ctx.fillStyle="red";
+    ctx.fillRect(barX,enemy.y-15,barW,8);
+    ctx.fillStyle="lime";
+    ctx.fillRect(barX,enemy.y-15,barW*(enemy.hp/enemy.maxHp),8);
+  }
 
   if(panther&&panther.alive){
     ctx.drawImage(pantherImg,panther.x,panther.y,panther.size,panther.size);
