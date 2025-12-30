@@ -42,20 +42,20 @@ canvas{display:block}
 
 <script>
 /* ================= CANVAS ================= */
-const canvas=document.getElementById("game");
-const ctx=canvas.getContext("2d");
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
 let FLOOR;
 
 /* ================= ASSETS ================= */
-const playerImg=new Image();
-const milkImg=new Image();
-const enemyImg=new Image();
-const beshikImg=new Image();
-const bulletImg=new Image();
-const pantherImg=new Image();
+const playerImg = new Image();
+const milkImg   = new Image();
+const enemyImg  = new Image();
+const beshikImg = new Image();
+const bulletImg = new Image();
+const pantherImg= new Image();
 
-const eatSound=new Audio("voice.mp3");
-const pantherSong=new Audio("song.mp3"); // 🎵 ПАНТЕРА
+const eatSound    = new Audio("voice.mp3");
+const pantherSong = new Audio("song.mp3");
 
 playerImg.src="photo.png";
 milkImg.src="milk.png";
@@ -69,15 +69,15 @@ const player={
   x:100,y:0,size:150,vx:0,vy:0,
   speed:5,jump:-18,onGround:false
 };
-const PLAYER_Y_OFFSET=player.size*0.2;
+const PLAYER_Y_OFFSET = player.size*0.2;
 
 /* ================= RESIZE ================= */
 function resize(){
-  canvas.width=innerWidth;
-  canvas.height=innerHeight;
-  FLOOR=innerHeight*0.85;
-  player.y=FLOOR-player.size+PLAYER_Y_OFFSET;
-  player.onGround=true;
+  canvas.width = innerWidth;
+  canvas.height = innerHeight;
+  FLOOR = innerHeight*0.85;
+  player.y = FLOOR-player.size+PLAYER_Y_OFFSET;
+  player.onGround = true;
 }
 addEventListener("resize",resize);
 
@@ -85,7 +85,9 @@ addEventListener("resize",resize);
 const input={left:false,right:false,jump:false,shoot:false};
 ["left","right","jump","shoot"].forEach(k=>{
   const el=document.getElementById(k);
-  el.addEventListener("touchstart",e=>{e.preventDefault();input[k]=true;},{passive:false});
+  el.addEventListener("touchstart",e=>{
+    e.preventDefault(); input[k]=true;
+  },{passive:false});
   el.addEventListener("touchend",()=>input[k]=false);
 });
 
@@ -123,17 +125,15 @@ function spawnPanther(){
     size:180,
     vx:-2,
     hasMilk:true,
-    alive:true
+    alive:true,
+    soundPlayed:false   // 🔑 флаг музыки
   };
-
-  /* 🎵 ЗАПУСК ПЕСНИ ОДИН РАЗ */
-  pantherSong.currentTime = 0;
-  pantherSong.play().catch(()=>{});
 }
 
+/* первая через 7 сек, далее каждые 12 сек */
 setTimeout(()=>{
   spawnPanther();
-  setInterval(spawnPanther,8000);
+  setInterval(spawnPanther,12000);
 },7000);
 
 /* ================= GAME ================= */
@@ -161,15 +161,17 @@ function update(){
 
   if(player.y+player.size-PLAYER_Y_OFFSET>=FLOOR){
     player.y=FLOOR-player.size+PLAYER_Y_OFFSET;
-    player.vy=0;player.onGround=true;
+    player.vy=0;
+    player.onGround=true;
   }
 
   /* SHOOT */
-  if(input.shoot&&performance.now()-lastShot>1000){
+  if(input.shoot && performance.now()-lastShot>1000){
     bullets.push({
       x:player.x+player.size,
       y:player.y+player.size/2,
-      size:80,vx:6
+      size:80,
+      vx:6
     });
     lastShot=performance.now();
   }
@@ -187,21 +189,31 @@ function update(){
     });
   }
 
-  /* PANTHER */
+  /* 🐆 PANTHER */
   if(panther&&panther.alive){
     panther.x+=panther.vx;
-    if(panther.hasMilk && panther.x<canvas.width*0.75){
+
+    /* 🎵 ВКЛЮЧАЕМ МУЗЫКУ, КОГДА ВИДНА */
+    if(!panther.soundPlayed && panther.x < canvas.width){
+      panther.soundPlayed = true;
+      pantherSong.currentTime = 0;
+      pantherSong.play().catch(()=>{});
+    }
+
+    if(panther.hasMilk && panther.x < canvas.width*0.75){
       throwMilk();
       panther.hasMilk=false;
     }
-    if(panther.x+panther.size<0) panther.alive=false;
+
+    if(panther.x+panther.size < 0)
+      panther.alive=false;
   }
 
-  /* HOMING MILK */
+  /* 🥛 HOMING MILK */
   milks.forEach(m=>{
     if(m.homing){
-      const dx=(player.x+player.size/2)-(m.x);
-      const dy=(player.y+player.size/2)-(m.y);
+      const dx=(player.x+player.size/2)-m.x;
+      const dy=(player.y+player.size/2)-m.y;
       const len=Math.hypot(dx,dy)||1;
       m.vx=(dx/len)*MILK_SPEED;
       m.vy=(dy/len)*MILK_SPEED;
@@ -231,8 +243,10 @@ function throwMilk(){
 
 /* ================= COLLISION ================= */
 function collide(a,b){
-  return a.x<b.x+b.size&&a.x+a.size>b.x&&
-         a.y<b.y+b.size&&a.y+a.size>b.y;
+  return a.x<b.x+b.size &&
+         a.x+a.size>b.x &&
+         a.y<b.y+b.size &&
+         a.y+a.size>b.y;
 }
 
 /* ================= DRAW ================= */
@@ -272,8 +286,12 @@ function startGame(){resize();loop();}
 /* ================= ORIENTATION ================= */
 const hint=document.getElementById("rotateHint");
 function checkOrientation(){
-  if(innerWidth>innerHeight){hint.style.display="none";startGame();}
-  else hint.style.display="flex";
+  if(innerWidth>innerHeight){
+    hint.style.display="none";
+    startGame();
+  }else{
+    hint.style.display="flex";
+  }
 }
 addEventListener("resize",checkOrientation);
 checkOrientation();
