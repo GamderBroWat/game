@@ -53,7 +53,9 @@ const enemyImg=new Image();
 const beshikImg=new Image();
 const bulletImg=new Image();
 const pantherImg=new Image();
+
 const eatSound=new Audio("voice.mp3");
+const pantherSong=new Audio("song.mp3"); // 🎵 ПАНТЕРА
 
 playerImg.src="photo.png";
 milkImg.src="milk.png";
@@ -123,7 +125,12 @@ function spawnPanther(){
     hasMilk:true,
     alive:true
   };
+
+  /* 🎵 ЗАПУСК ПЕСНИ ОДИН РАЗ */
+  pantherSong.currentTime = 0;
+  pantherSong.play().catch(()=>{});
 }
+
 setTimeout(()=>{
   spawnPanther();
   setInterval(spawnPanther,8000);
@@ -190,12 +197,12 @@ function update(){
     if(panther.x+panther.size<0) panther.alive=false;
   }
 
-  /* 🥛 HOMING MILK */
+  /* HOMING MILK */
   milks.forEach(m=>{
     if(m.homing){
       const dx=(player.x+player.size/2)-(m.x);
       const dy=(player.y+player.size/2)-(m.y);
-      const len=Math.hypot(dx,dy) || 1;
+      const len=Math.hypot(dx,dy)||1;
       m.vx=(dx/len)*MILK_SPEED;
       m.vy=(dy/len)*MILK_SPEED;
     }
