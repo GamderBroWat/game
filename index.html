@@ -1,76 +1,340 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Mobile Video Editor</title>
-<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.6/dist/ffmpeg.min.js"></script>
-<style>
-*{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif}
-body{background:#0f0f0f;color:#fff;height:100vh;overflow:hidden}
-.app{height:100vh;display:flex;flex-direction:column}
-header{height:56px;background:#181818;display:flex;align-items:center;justify-content:center;font-weight:600;border-bottom:1px solid #222}
-main{flex:1;padding:12px;display:flex;flex-direction:column;gap:12px}
-video{width:100%;border-radius:12px;background:#000}
-.controls{display:flex;gap:8px}
-.controls button{flex:1;background:#2563eb;border:none;border-radius:12px;color:#fff;padding:12px;font-size:14px}
-.timeline{display:flex;gap:8px}
-.timeline input{flex:1}
-footer{height:64px;background:#181818;display:flex;justify-content:space-around;align-items:center;border-top:1px solid #222;font-size:12px;color:#aaa}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>iEdit Pro - Mobile Video Editor</title>
+    <style>
+        :root {
+            --bg-color: #000;
+            --accent-color: #007AFF;
+            --panel-bg: #1C1C1E;
+            --text-color: #fff;
+            --safe-top: env(safe-area-inset-top);
+            --safe-bottom: env(safe-area-inset-bottom);
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        
+        body {
+            margin: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Header */
+        header {
+            padding-top: var(--safe-top);
+            height: calc(50px + var(--safe-top));
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-left: 20px;
+            padding-right: 20px;
+            background: var(--panel-bg);
+            z-index: 10;
+        }
+
+        .export-btn {
+            background: var(--accent-color);
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 18px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        /* Preview Area */
+        #preview-container {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            background: #000;
+        }
+
+        canvas {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+
+        /* Controls / Timeline */
+        .controls {
+            background: var(--panel-bg);
+            padding-bottom: var(--safe-bottom);
+            border-top: 1px solid #333;
+        }
+
+        .timeline-wrapper {
+            padding: 20px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 4px;
+            accent-color: var(--accent-color);
+        }
+
+        .tool-bar {
+            display: flex;
+            justify-content: space-around;
+            padding: 15px 10px;
+            overflow-x: auto;
+        }
+
+        .tool-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-size: 10px;
+            color: #8E8E93;
+            min-width: 60px;
+        }
+
+        .tool-icon {
+            font-size: 24px;
+            margin-bottom: 5px;
+            color: #fff;
+        }
+
+        /* Hidden Video Element */
+        #main-video { display: none; }
+
+        /* Overlays */
+        .modal {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #2C2C2E;
+            border-top-left-radius: 20px;
+            border-top-right-radius: 20px;
+            padding: 20px;
+            transform: translateY(100%);
+            transition: transform 0.3s ease;
+            z-index: 20;
+        }
+
+        .modal.active { transform: translateY(0); }
+
+        .filter-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+        }
+
+        .filter-btn {
+            background: #3A3A3C;
+            border: none;
+            color: white;
+            padding: 10px 5px;
+            border-radius: 8px;
+            font-size: 11px;
+        }
+
+        .placeholder-text {
+            text-align: center;
+            color: #444;
+        }
+    </style>
 </head>
 <body>
-<div class="app">
-<header>Онлайн видеоредактор</header>
-<main>
-<input type="file" id="upload" accept="video/*" />
-<video id="video" controls></video>
-<div class="timeline">
-<input type="number" id="start" placeholder="start (sec)" />
-<input type="number" id="end" placeholder="end (sec)" />
+
+<header>
+    <div style="font-weight: 700; letter-spacing: -0.5px;">iEdit <span style="color:var(--accent-color)">PRO</span></div>
+    <button class="export-btn" onclick="exportVideo()">Экспорт</button>
+</header>
+
+<div id="preview-container">
+    <div id="upload-prompt" class="placeholder-text">
+        <p>Нажмите "+", чтобы добавить видео</p>
+    </div>
+    <canvas id="editor-canvas"></canvas>
+    <video id="main-video" playsinline></video>
 </div>
+
 <div class="controls">
-<button id="cut">✂️ Обрезать</button>
-<button id="speed">⚡ x2</button>
+    <div class="timeline-wrapper">
+        <input type="range" id="timeline" min="0" value="0" step="0.1">
+        <div style="display: flex; justify-content: space-between; font-size: 12px; margin-top: 5px; color: #8E8E93;">
+            <span id="current-time">0:00</span>
+            <span id="total-time">0:00</span>
+        </div>
+    </div>
+
+    <div class="tool-bar">
+        <div class="tool-item" onclick="document.getElementById('file-input').click()">
+            <span class="tool-icon">➕</span>
+            <span>Добавить</span>
+        </div>
+        <div class="tool-item" onclick="togglePlay()">
+            <span class="tool-icon" id="play-icon">▶️</span>
+            <span>Пуск</span>
+        </div>
+        <div class="tool-item" onclick="showModal('filters-modal')">
+            <span class="tool-icon">🎬</span>
+            <span>Фильтры</span>
+        </div>
+        <div class="tool-item" onclick="addText()">
+            <span class="tool-icon">Aa</span>
+            <span>Текст</span>
+        </div>
+    </div>
 </div>
-<a id="download" style="display:none;color:#4ade80">Скачать видео</a>
-</main>
-<footer>
-<div>Проекты</div><div>Инструменты</div><div>Профиль</div>
-</footer>
+
+<div id="filters-modal" class="modal">
+    <div style="display:flex; justify-content: space-between; margin-bottom: 20px;">
+        <b style="font-size: 18px;">Фильтры</b>
+        <span onclick="closeModal('filters-modal')">Готово</span>
+    </div>
+    <div class="filter-grid">
+        <button class="filter-btn" onclick="setFilter('none')">Оригинал</button>
+        <button class="filter-btn" onclick="setFilter('grayscale(100%)')">Ч/Б</button>
+        <button class="filter-btn" onclick="setFilter('sepia(100%)')">Сепия</button>
+        <button class="filter-btn" onclick="setFilter('contrast(150%) brightness(110%)')">Яркий</button>
+        <button class="filter-btn" onclick="setFilter('invert(100%)')">Инверсия</button>
+        <button class="filter-btn" onclick="setFilter('hue-rotate(90deg)')">Кислота</button>
+        <button class="filter-btn" onclick="setFilter('saturate(200%)')">Насыщенный</button>
+        <button class="filter-btn" onclick="setFilter('blur(5px)')">Размытие</button>
+    </div>
 </div>
+
+<input type="file" id="file-input" accept="video/*" style="display: none">
+
 <script>
-const { FFmpeg } = FFmpegWASM;
-const ffmpeg = new FFmpeg();
-const upload=document.getElementById('upload');
-const video=document.getElementById('video');
-const download=document.getElementById('download');
-let file;
-upload.onchange=e=>{
- file=e.target.files[0];
- video.src=URL.createObjectURL(file);
-};
-async function loadFF(){if(!ffmpeg.loaded) await ffmpeg.load({coreURL:"https://unpkg.com/@ffmpeg/core@0.12.6/dist/ffmpeg-core.js"});}
-document.getElementById('cut').onclick=async()=>{
- await loadFF();
- const start=document.getElementById('start').value||0;
- const end=document.getElementById('end').value||5;
- ffmpeg.FS('writeFile','in.mp4',await fetchFile(file));
- await ffmpeg.exec(['-i','in.mp4','-ss',start,'-to',end,'-c','copy','out.mp4']);
- const data=ffmpeg.FS('readFile','out.mp4');
- const url=URL.createObjectURL(new Blob([data.buffer],{type:'video/mp4'}));
- download.href=url;download.download='edited.mp4';download.style.display='block';
- video.src=url;
-};
-document.getElementById('speed').onclick=async()=>{
- await loadFF();
- ffmpeg.FS('writeFile','in.mp4',await fetchFile(file));
- await ffmpeg.exec(['-i','in.mp4','-filter:v','setpts=0.5*PTS','out.mp4']);
- const data=ffmpeg.FS('readFile','out.mp4');
- const url=URL.createObjectURL(new Blob([data.buffer],{type:'video/mp4'}));
- video.src=url;download.href=url;download.download='speed.mp4';download.style.display='block';
-};
-async function fetchFile(file){return new Uint8Array(await file.arrayBuffer());}
+    const video = document.getElementById('main-video');
+    const canvas = document.getElementById('editor-canvas');
+    const ctx = canvas.getContext('2d');
+    const timeline = document.getElementById('timeline');
+    const fileInput = document.getElementById('file-input');
+    const playIcon = document.getElementById('play-icon');
+    
+    let currentFilter = 'none';
+    let overlayText = "";
+    let isPlaying = false;
+
+    // Load Video
+    fileInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const url = URL.createObjectURL(file);
+            video.src = url;
+            document.getElementById('upload-prompt').style.display = 'none';
+            video.onloadedmetadata = () => {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                timeline.max = video.duration;
+                document.getElementById('total-time').innerText = formatTime(video.duration);
+                renderFrame();
+            };
+        }
+    });
+
+    // Play/Pause
+    function togglePlay() {
+        if (video.paused) {
+            video.play();
+            playIcon.innerText = "⏸️";
+            requestAnimationFrame(updateLoop);
+        } else {
+            video.pause();
+            playIcon.innerText = "▶️";
+        }
+    }
+
+    function updateLoop() {
+        if (!video.paused) {
+            renderFrame();
+            timeline.value = video.currentTime;
+            document.getElementById('current-time').innerText = formatTime(video.currentTime);
+            requestAnimationFrame(updateLoop);
+        }
+    }
+
+    // Rendering Engine
+    function renderFrame() {
+        ctx.filter = currentFilter;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        if (overlayText) {
+            ctx.filter = 'none'; // Text shouldn't be filtered usually
+            ctx.fillStyle = "white";
+            ctx.font = `${canvas.width/10}px Arial`;
+            ctx.textAlign = "center";
+            ctx.fillText(overlayText, canvas.width/2, canvas.height/2);
+        }
+    }
+
+    // Timeline Interaction
+    timeline.addEventListener('input', () => {
+        video.currentTime = timeline.value;
+        renderFrame();
+    });
+
+    // UI Functions
+    function showModal(id) { document.getElementById(id).classList.add('active'); }
+    function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+    
+    function setFilter(filterStr) {
+        currentFilter = filterStr;
+        renderFrame();
+    }
+
+    function addText() {
+        const text = prompt("Введите текст для наложения:", "My Video");
+        if (text !== null) {
+            overlayText = text;
+            renderFrame();
+        }
+    }
+
+    function formatTime(seconds) {
+        const m = Math.floor(seconds / 60);
+        const s = Math.floor(seconds % 60);
+        return `${m}:${s < 10 ? '0' : ''}${s}`;
+    }
+
+    // Export Logic (using MediaRecorder)
+    async function exportVideo() {
+        if (!video.src) return alert("Загрузите видео!");
+        
+        alert("Начинается рендеринг. Пожалуйста, не закрывайте вкладку. Видео будет загружено автоматически по завершении.");
+        
+        const stream = canvas.captureStream(30);
+        const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+        const chunks = [];
+
+        recorder.ondataavailable = e => chunks.push(e.data);
+        recorder.onstop = () => {
+            const blob = new Blob(chunks, { type: 'video/webm' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'edited_video.webm';
+            a.click();
+        };
+
+        // Reset and start
+        video.currentTime = 0;
+        video.play();
+        recorder.start();
+
+        video.onended = () => {
+            recorder.stop();
+            video.pause();
+            playIcon.innerText = "▶️";
+        };
+    }
 </script>
+
 </body>
 </html>
