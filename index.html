@@ -25,6 +25,8 @@ input[type=range]{width:100%}
 <video id="video" playsinline></video>
 <canvas id="canvas" hidden></canvas>
 <div class="controls">
+<label>⏱ Просмотр и изменение кадра (scrub)</label>
+<input type="range" id="scrubber" min="0" max="100" value="0" />
 <div class="timeline" id="timeline"><div class="clip">Clip 1</div></div>
 <div class="row">
 <button onclick="playPause()">▶ / ⏸</button>
@@ -50,11 +52,12 @@ input[type=range]{width:100%}
 </div>
 <script>
 const video=document.getElementById('video');
+const scrubber=document.getElementById('scrubber');
 const canvas=document.getElementById('canvas');
 const ctx=canvas.getContext('2d');
 let textOverlay='';
 let recorder,chunks=[];
-upload.onchange=e=>{const f=e.target.files[0];video.src=URL.createObjectURL(f);video.onloadedmetadata=()=>{canvas.width=video.videoWidth;canvas.height=video.videoHeight;draw();}}
+upload.onchange=e=>{const f=e.target.files[0];video.src=URL.createObjectURL(f);video.onloadedmetadata=()=>{canvas.width=video.videoWidth;canvas.height=video.videoHeight;scrubber.max=Math.floor(video.duration*1000);draw();}}
 function playPause(){video.paused?video.play():video.pause()}
 function splitClip(){alert('Split: MVP stub')}
 function trimClip(){alert('Trim: MVP stub')}
@@ -63,6 +66,18 @@ function addMusic(){alert('Music upload: MVP stub')}
 function addText(){const t=prompt('Text');if(t)textOverlay=t}
 function draw(){ctx.filter=`brightness(${brightness.value}%) contrast(${contrast.value}%) saturate(${saturation.value}%)`;if(!video.paused&&!video.ended){ctx.drawImage(video,0,0,canvas.width,canvas.height);if(textOverlay){ctx.fillStyle='white';ctx.font='48px sans-serif';ctx.fillText(textOverlay,40,80)}}requestAnimationFrame(draw)}
 speed.oninput=()=>video.playbackRate=speed.value;
+
+scrubber.oninput=()=>{
+  video.pause();
+  video.currentTime=scrubber.value/1000;
+  drawFrame();
+};
+
+function drawFrame(){
+  ctx.filter=`brightness(${brightness.value}%) contrast(${contrast.value}%) saturate(${saturation.value}%)`;
+  ctx.drawImage(video,0,0,canvas.width,canvas.height);
+  if(textOverlay){ctx.fillStyle='white';ctx.font='48px sans-serif';ctx.fillText(textOverlay,40,80)}
+}
 function exportVideo(){const stream=canvas.captureStream();recorder=new MediaRecorder(stream,{mimeType:'video/webm'});recorder.ondataavailable=e=>chunks.push(e.data);recorder.onstop=()=>{const blob=new Blob(chunks,{type:'video/webm'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='video.webm';a.click();chunks=[]};recorder.start();video.play();video.onended=()=>recorder.stop()}
 </script>
 </body>
