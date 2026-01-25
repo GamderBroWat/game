@@ -2,83 +2,75 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<title>Advanced Mobile Video Editor</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Mobile Video Editor</title>
+<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.6/dist/ffmpeg.min.js"></script>
 <style>
-*{box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif}
-body{margin:0;background:#0e0e0e;color:#fff}
-header{padding:12px;text-align:center;font-weight:600}
-video,canvas{width:100%;max-height:55vh;background:#000}
-.controls{padding:10px;display:flex;flex-direction:column;gap:10px}
-.row{display:flex;gap:6px}
-button{flex:1;padding:10px;border:none;border-radius:10px;background:#1f6fff;color:#fff;font-weight:600}
-button.alt{background:#333}
-label{font-size:12px;opacity:.7}
-input[type=range]{width:100%}
-.timeline{height:60px;background:#1a1a1a;border-radius:10px;display:flex;align-items:center;padding:5px;font-size:12px;overflow-x:auto}
-.clip{min-width:80px;height:40px;background:#2f2f2f;border-radius:6px;margin-right:6px;display:flex;align-items:center;justify-content:center}
+*{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif}
+body{background:#0f0f0f;color:#fff;height:100vh;overflow:hidden}
+.app{height:100vh;display:flex;flex-direction:column}
+header{height:56px;background:#181818;display:flex;align-items:center;justify-content:center;font-weight:600;border-bottom:1px solid #222}
+main{flex:1;padding:12px;display:flex;flex-direction:column;gap:12px}
+video{width:100%;border-radius:12px;background:#000}
+.controls{display:flex;gap:8px}
+.controls button{flex:1;background:#2563eb;border:none;border-radius:12px;color:#fff;padding:12px;font-size:14px}
+.timeline{display:flex;gap:8px}
+.timeline input{flex:1}
+footer{height:64px;background:#181818;display:flex;justify-content:space-around;align-items:center;border-top:1px solid #222;font-size:12px;color:#aaa}
 </style>
 </head>
 <body>
-<header>📱 Advanced Video Editor</header>
-<input type="file" accept="video/*" id="upload" style="padding:10px" />
-<video id="video" playsinline></video>
-<canvas id="canvas" hidden></canvas>
+<div class="app">
+<header>Онлайн видеоредактор</header>
+<main>
+<input type="file" id="upload" accept="video/*" />
+<video id="video" controls></video>
+<div class="timeline">
+<input type="number" id="start" placeholder="start (sec)" />
+<input type="number" id="end" placeholder="end (sec)" />
+</div>
 <div class="controls">
-<label>⏱ Просмотр и изменение кадра (scrub)</label>
-<input type="range" id="scrubber" min="0" max="100" value="0" />
-<div class="timeline" id="timeline"><div class="clip">Clip 1</div></div>
-<div class="row">
-<button onclick="playPause()">▶ / ⏸</button>
-<button class="alt" onclick="splitClip()">✂ Split</button>
-<button class="alt" onclick="trimClip()">⏱ Trim</button>
+<button id="cut">✂️ Обрезать</button>
+<button id="speed">⚡ x2</button>
 </div>
-<label>Speed</label>
-<input type="range" min="0.25" max="2" step="0.25" value="1" id="speed" />
-<label>Brightness</label>
-<input type="range" min="0" max="200" value="100" id="brightness" />
-<label>Contrast</label>
-<input type="range" min="0" max="200" value="100" id="contrast" />
-<label>Saturation</label>
-<input type="range" min="0" max="200" value="100" id="saturation" />
-<div class="row">
-<button onclick="addText()">📝 Text</button>
-<button class="alt" onclick="addSticker()">😀 Sticker</button>
-<button class="alt" onclick="addMusic()">🎵 Music</button>
-</div>
-<div class="row">
-<button onclick="exportVideo()">⏺ Export</button>
-</div>
+<a id="download" style="display:none;color:#4ade80">Скачать видео</a>
+</main>
+<footer>
+<div>Проекты</div><div>Инструменты</div><div>Профиль</div>
+</footer>
 </div>
 <script>
+const { FFmpeg } = FFmpegWASM;
+const ffmpeg = new FFmpeg();
+const upload=document.getElementById('upload');
 const video=document.getElementById('video');
-const scrubber=document.getElementById('scrubber');
-const canvas=document.getElementById('canvas');
-const ctx=canvas.getContext('2d');
-let textOverlay='';
-let recorder,chunks=[];
-upload.onchange=e=>{const f=e.target.files[0];video.src=URL.createObjectURL(f);video.onloadedmetadata=()=>{canvas.width=video.videoWidth;canvas.height=video.videoHeight;scrubber.max=Math.floor(video.duration*1000);draw();}}
-function playPause(){video.paused?video.play():video.pause()}
-function splitClip(){alert('Split: MVP stub')}
-function trimClip(){alert('Trim: MVP stub')}
-function addSticker(){alert('Sticker system: MVP stub')}
-function addMusic(){alert('Music upload: MVP stub')}
-function addText(){const t=prompt('Text');if(t)textOverlay=t}
-function draw(){ctx.filter=`brightness(${brightness.value}%) contrast(${contrast.value}%) saturate(${saturation.value}%)`;if(!video.paused&&!video.ended){ctx.drawImage(video,0,0,canvas.width,canvas.height);if(textOverlay){ctx.fillStyle='white';ctx.font='48px sans-serif';ctx.fillText(textOverlay,40,80)}}requestAnimationFrame(draw)}
-speed.oninput=()=>video.playbackRate=speed.value;
-
-scrubber.oninput=()=>{
-  video.pause();
-  video.currentTime=scrubber.value/1000;
-  drawFrame();
+const download=document.getElementById('download');
+let file;
+upload.onchange=e=>{
+ file=e.target.files[0];
+ video.src=URL.createObjectURL(file);
 };
-
-function drawFrame(){
-  ctx.filter=`brightness(${brightness.value}%) contrast(${contrast.value}%) saturate(${saturation.value}%)`;
-  ctx.drawImage(video,0,0,canvas.width,canvas.height);
-  if(textOverlay){ctx.fillStyle='white';ctx.font='48px sans-serif';ctx.fillText(textOverlay,40,80)}
-}
-function exportVideo(){const stream=canvas.captureStream();recorder=new MediaRecorder(stream,{mimeType:'video/webm'});recorder.ondataavailable=e=>chunks.push(e.data);recorder.onstop=()=>{const blob=new Blob(chunks,{type:'video/webm'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='video.webm';a.click();chunks=[]};recorder.start();video.play();video.onended=()=>recorder.stop()}
+async function loadFF(){if(!ffmpeg.loaded) await ffmpeg.load({coreURL:"https://unpkg.com/@ffmpeg/core@0.12.6/dist/ffmpeg-core.js"});}
+document.getElementById('cut').onclick=async()=>{
+ await loadFF();
+ const start=document.getElementById('start').value||0;
+ const end=document.getElementById('end').value||5;
+ ffmpeg.FS('writeFile','in.mp4',await fetchFile(file));
+ await ffmpeg.exec(['-i','in.mp4','-ss',start,'-to',end,'-c','copy','out.mp4']);
+ const data=ffmpeg.FS('readFile','out.mp4');
+ const url=URL.createObjectURL(new Blob([data.buffer],{type:'video/mp4'}));
+ download.href=url;download.download='edited.mp4';download.style.display='block';
+ video.src=url;
+};
+document.getElementById('speed').onclick=async()=>{
+ await loadFF();
+ ffmpeg.FS('writeFile','in.mp4',await fetchFile(file));
+ await ffmpeg.exec(['-i','in.mp4','-filter:v','setpts=0.5*PTS','out.mp4']);
+ const data=ffmpeg.FS('readFile','out.mp4');
+ const url=URL.createObjectURL(new Blob([data.buffer],{type:'video/mp4'}));
+ video.src=url;download.href=url;download.download='speed.mp4';download.style.display='block';
+};
+async function fetchFile(file){return new Uint8Array(await file.arrayBuffer());}
 </script>
 </body>
 </html>
