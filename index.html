@@ -2,339 +2,166 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>iEdit Pro - Mobile Video Editor</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Bump Multiplayer</title>
     <style>
         :root {
-            --bg-color: #000;
-            --accent-color: #007AFF;
-            --panel-bg: #1C1C1E;
-            --text-color: #fff;
-            --safe-top: env(safe-area-inset-top);
-            --safe-bottom: env(safe-area-inset-bottom);
+            --bg: #0a0a0c;
+            --accent: #00f2ff;
         }
-
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        
-        body {
-            margin: 0;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
+        * { box-sizing: border-box; touch-action: none; }
+        body, html { 
+            margin: 0; padding: 0; width: 100%; height: 100%; 
+            background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif;
             overflow: hidden;
         }
 
-        /* Header */
-        header {
-            padding-top: var(--safe-top);
-            height: calc(50px + var(--safe-top));
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding-left: 20px;
-            padding-right: 20px;
-            background: var(--panel-bg);
-            z-index: 10;
+        /* Экран авторизации */
+        #auth-screen {
+            position: fixed; z-index: 10; width: 100%; height: 100%;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            background: rgba(10, 10, 12, 0.95);
+        }
+        input {
+            padding: 15px; border-radius: 25px; border: 2px solid var(--accent);
+            background: transparent; color: white; font-size: 1.2rem; text-align: center;
+            margin-bottom: 20px; outline: none;
+        }
+        button {
+            padding: 15px 40px; border-radius: 25px; border: none;
+            background: var(--accent); color: black; font-weight: bold;
+            font-size: 1.1rem; cursor: pointer;
         }
 
-        .export-btn {
-            background: var(--accent-color);
-            border: none;
-            color: white;
-            padding: 8px 16px;
-            border-radius: 18px;
-            font-weight: 600;
-            font-size: 14px;
+        /* Игровой интерфейс */
+        #game-ui {
+            position: absolute; top: 20px; left: 20px; pointer-events: none;
+            text-shadow: 0 0 10px rgba(0,242,255,0.5);
         }
-
-        /* Preview Area */
-        #preview-container {
-            flex: 1;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            position: relative;
-            background: #000;
-        }
-
-        canvas {
-            max-width: 100%;
-            max-height: 100%;
-            object-fit: contain;
-            box-shadow: 0 0 20px rgba(0,0,0,0.5);
-        }
-
-        /* Controls / Timeline */
-        .controls {
-            background: var(--panel-bg);
-            padding-bottom: var(--safe-bottom);
-            border-top: 1px solid #333;
-        }
-
-        .timeline-wrapper {
-            padding: 20px;
-        }
-
-        input[type="range"] {
-            width: 100%;
-            height: 4px;
-            accent-color: var(--accent-color);
-        }
-
-        .tool-bar {
-            display: flex;
-            justify-content: space-around;
-            padding: 15px 10px;
-            overflow-x: auto;
-        }
-
-        .tool-item {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            font-size: 10px;
-            color: #8E8E93;
-            min-width: 60px;
-        }
-
-        .tool-icon {
-            font-size: 24px;
-            margin-bottom: 5px;
-            color: #fff;
-        }
-
-        /* Hidden Video Element */
-        #main-video { display: none; }
-
-        /* Overlays */
-        .modal {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: #2C2C2E;
-            border-top-left-radius: 20px;
-            border-top-right-radius: 20px;
-            padding: 20px;
-            transform: translateY(100%);
-            transition: transform 0.3s ease;
-            z-index: 20;
-        }
-
-        .modal.active { transform: translateY(0); }
-
-        .filter-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 10px;
-        }
-
-        .filter-btn {
-            background: #3A3A3C;
-            border: none;
-            color: white;
-            padding: 10px 5px;
-            border-radius: 8px;
-            font-size: 11px;
-        }
-
-        .placeholder-text {
-            text-align: center;
-            color: #444;
-        }
+        canvas { display: block; background: radial-gradient(circle, #1a1a2e 0%, #0a0a0c 100%); }
     </style>
 </head>
 <body>
 
-<header>
-    <div style="font-weight: 700; letter-spacing: -0.5px;">iEdit <span style="color:var(--accent-color)">PRO</span></div>
-    <button class="export-btn" onclick="exportVideo()">Экспорт</button>
-</header>
-
-<div id="preview-container">
-    <div id="upload-prompt" class="placeholder-text">
-        <p>Нажмите "+", чтобы добавить видео</p>
-    </div>
-    <canvas id="editor-canvas"></canvas>
-    <video id="main-video" playsinline></video>
-</div>
-
-<div class="controls">
-    <div class="timeline-wrapper">
-        <input type="range" id="timeline" min="0" value="0" step="0.1">
-        <div style="display: flex; justify-content: space-between; font-size: 12px; margin-top: 5px; color: #8E8E93;">
-            <span id="current-time">0:00</span>
-            <span id="total-time">0:00</span>
-        </div>
+    <div id="auth-screen">
+        <h1 style="color: var(--accent); letter-spacing: 5px;">NEON BUMP</h1>
+        <input type="text" id="nickname" placeholder="Твой никнейм" maxlength="12">
+        <button onclick="startGame()">ИГРАТЬ</button>
+        <p style="font-size: 0.8rem; opacity: 0.6; margin-top: 20px;">Нажимай на экран, чтобы двигаться</p>
     </div>
 
-    <div class="tool-bar">
-        <div class="tool-item" onclick="document.getElementById('file-input').click()">
-            <span class="tool-icon">➕</span>
-            <span>Добавить</span>
-        </div>
-        <div class="tool-item" onclick="togglePlay()">
-            <span class="tool-icon" id="play-icon">▶️</span>
-            <span>Пуск</span>
-        </div>
-        <div class="tool-item" onclick="showModal('filters-modal')">
-            <span class="tool-icon">🎬</span>
-            <span>Фильтры</span>
-        </div>
-        <div class="tool-item" onclick="addText()">
-            <span class="tool-icon">Aa</span>
-            <span>Текст</span>
-        </div>
+    <div id="game-ui">
+        <div id="score">Очки: 0</div>
+        <div id="online">В сети: 0</div>
     </div>
-</div>
 
-<div id="filters-modal" class="modal">
-    <div style="display:flex; justify-content: space-between; margin-bottom: 20px;">
-        <b style="font-size: 18px;">Фильтры</b>
-        <span onclick="closeModal('filters-modal')">Готово</span>
-    </div>
-    <div class="filter-grid">
-        <button class="filter-btn" onclick="setFilter('none')">Оригинал</button>
-        <button class="filter-btn" onclick="setFilter('grayscale(100%)')">Ч/Б</button>
-        <button class="filter-btn" onclick="setFilter('sepia(100%)')">Сепия</button>
-        <button class="filter-btn" onclick="setFilter('contrast(150%) brightness(110%)')">Яркий</button>
-        <button class="filter-btn" onclick="setFilter('invert(100%)')">Инверсия</button>
-        <button class="filter-btn" onclick="setFilter('hue-rotate(90deg)')">Кислота</button>
-        <button class="filter-btn" onclick="setFilter('saturate(200%)')">Насыщенный</button>
-        <button class="filter-btn" onclick="setFilter('blur(5px)')">Размытие</button>
-    </div>
-</div>
+    <canvas id="gameCanvas"></canvas>
 
-<input type="file" id="file-input" accept="video/*" style="display: none">
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getDatabase, ref, set, onValue, onDisconnect, update, remove } 
+        from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-<script>
-    const video = document.getElementById('main-video');
-    const canvas = document.getElementById('editor-canvas');
-    const ctx = canvas.getContext('2d');
-    const timeline = document.getElementById('timeline');
-    const fileInput = document.getElementById('file-input');
-    const playIcon = document.getElementById('play-icon');
-    
-    let currentFilter = 'none';
-    let overlayText = "";
-    let isPlaying = false;
+        // Конфигурация (Публичная тестовая БД)
+        const firebaseConfig = {
+            databaseURL: "https://multiplayer-demo-64b54-default-rtdb.europe-west1.firebasedatabase.app/"
+        };
 
-    // Load Video
-    fileInput.addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (file) {
-            const url = URL.createObjectURL(file);
-            video.src = url;
-            document.getElementById('upload-prompt').style.display = 'none';
-            video.onloadedmetadata = () => {
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                timeline.max = video.duration;
-                document.getElementById('total-time').innerText = formatTime(video.duration);
-                renderFrame();
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const authScreen = document.getElementById('auth-screen');
+        
+        let playerId;
+        let playerRef;
+        let players = {};
+        let myData = { x: 0, y: 0, score: 0, color: '', name: '' };
+        let targetPos = { x: 0, y: 0 };
+
+        // Инициализация размеров
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        window.startGame = function() {
+            const nick = document.getElementById('nickname').value.trim();
+            if(!nick) return alert("Введите имя!");
+
+            playerId = 'p_' + Math.random().toString(36).substr(2, 9);
+            myData = {
+                id: playerId,
+                name: nick,
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                score: 0,
+                color: `hsl(${Math.random() * 360}, 70%, 60%)`
             };
-        }
-    });
 
-    // Play/Pause
-    function togglePlay() {
-        if (video.paused) {
-            video.play();
-            playIcon.innerText = "⏸️";
-            requestAnimationFrame(updateLoop);
-        } else {
-            video.pause();
-            playIcon.innerText = "▶️";
-        }
-    }
+            playerRef = ref(db, 'players/' + playerId);
+            set(playerRef, myData);
+            onDisconnect(playerRef).remove();
 
-    function updateLoop() {
-        if (!video.paused) {
-            renderFrame();
-            timeline.value = video.currentTime;
-            document.getElementById('current-time').innerText = formatTime(video.currentTime);
-            requestAnimationFrame(updateLoop);
-        }
-    }
+            authScreen.style.display = 'none';
+            targetPos = { x: myData.x, y: myData.y };
 
-    // Rendering Engine
-    function renderFrame() {
-        ctx.filter = currentFilter;
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        
-        if (overlayText) {
-            ctx.filter = 'none'; // Text shouldn't be filtered usually
-            ctx.fillStyle = "white";
-            ctx.font = `${canvas.width/10}px Arial`;
-            ctx.textAlign = "center";
-            ctx.fillText(overlayText, canvas.width/2, canvas.height/2);
-        }
-    }
+            // Слушаем всех игроков
+            onValue(ref(db, 'players'), (snapshot) => {
+                players = snapshot.val() || {};
+                document.getElementById('online').innerText = `В сети: ${Object.keys(players).length}`;
+            });
 
-    // Timeline Interaction
-    timeline.addEventListener('input', () => {
-        video.currentTime = timeline.value;
-        renderFrame();
-    });
-
-    // UI Functions
-    function showModal(id) { document.getElementById(id).classList.add('active'); }
-    function closeModal(id) { document.getElementById(id).classList.remove('active'); }
-    
-    function setFilter(filterStr) {
-        currentFilter = filterStr;
-        renderFrame();
-    }
-
-    function addText() {
-        const text = prompt("Введите текст для наложения:", "My Video");
-        if (text !== null) {
-            overlayText = text;
-            renderFrame();
-        }
-    }
-
-    function formatTime(seconds) {
-        const m = Math.floor(seconds / 60);
-        const s = Math.floor(seconds % 60);
-        return `${m}:${s < 10 ? '0' : ''}${s}`;
-    }
-
-    // Export Logic (using MediaRecorder)
-    async function exportVideo() {
-        if (!video.src) return alert("Загрузите видео!");
-        
-        alert("Начинается рендеринг. Пожалуйста, не закрывайте вкладку. Видео будет загружено автоматически по завершении.");
-        
-        const stream = canvas.captureStream(30);
-        const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
-        const chunks = [];
-
-        recorder.ondataavailable = e => chunks.push(e.data);
-        recorder.onstop = () => {
-            const blob = new Blob(chunks, { type: 'video/webm' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'edited_video.webm';
-            a.click();
+            gameLoop();
         };
 
-        // Reset and start
-        video.currentTime = 0;
-        video.play();
-        recorder.start();
-
-        video.onended = () => {
-            recorder.stop();
-            video.pause();
-            playIcon.innerText = "▶️";
+        // Управление (Touch и Mouse)
+        const handleInput = (e) => {
+            if(!playerId) return;
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            targetPos.x = clientX;
+            targetPos.y = clientY;
         };
-    }
-</script>
 
+        window.addEventListener('mousedown', handleInput);
+        window.addEventListener('touchstart', handleInput);
+
+        function gameLoop() {
+            // Плавное движение игрока (Interpolation)
+            myData.x += (targetPos.x - myData.x) * 0.05;
+            myData.y += (targetPos.y - myData.y) * 0.05;
+
+            // Обновление позиции в БД (не чаще 30 раз в сек для экономии трафика)
+            update(playerRef, { x: myData.x, y: myData.y });
+
+            // Отрисовка
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            Object.values(players).forEach(p => {
+                // Тень/Свечение
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = p.color;
+                
+                // Тело игрока
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 20 + (p.score || 0), 0, Math.PI * 2);
+                ctx.fillStyle = p.color;
+                ctx.fill();
+                ctx.closePath();
+                
+                // Имя
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = 'white';
+                ctx.textAlign = 'center';
+                ctx.fillText(p.name, p.x, p.y - 35);
+            });
+
+            requestAnimationFrame(gameLoop);
+        }
+    </script>
 </body>
 </html>
