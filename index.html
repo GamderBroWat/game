@@ -1,167 +1,213 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Bump Multiplayer</title>
-    <style>
-        :root {
-            --bg: #0a0a0c;
-            --accent: #00f2ff;
-        }
-        * { box-sizing: border-box; touch-action: none; }
-        body, html { 
-            margin: 0; padding: 0; width: 100%; height: 100%; 
-            background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif;
-            overflow: hidden;
-        }
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+<title>Vertical Dots — Multiplayer</title>
 
-        /* Экран авторизации */
-        #auth-screen {
-            position: fixed; z-index: 10; width: 100%; height: 100%;
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            background: rgba(10, 10, 12, 0.95);
-        }
-        input {
-            padding: 15px; border-radius: 25px; border: 2px solid var(--accent);
-            background: transparent; color: white; font-size: 1.2rem; text-align: center;
-            margin-bottom: 20px; outline: none;
-        }
-        button {
-            padding: 15px 40px; border-radius: 25px; border: none;
-            background: var(--accent); color: black; font-weight: bold;
-            font-size: 1.1rem; cursor: pointer;
-        }
+<style>
+html, body {
+	margin: 0;
+	padding: 0;
+	background: #0e0e11;
+	color: white;
+	font-family: system-ui, sans-serif;
+	height: 100%;
+	overflow: hidden;
+}
 
-        /* Игровой интерфейс */
-        #game-ui {
-            position: absolute; top: 20px; left: 20px; pointer-events: none;
-            text-shadow: 0 0 10px rgba(0,242,255,0.5);
-        }
-        canvas { display: block; background: radial-gradient(circle, #1a1a2e 0%, #0a0a0c 100%); }
-    </style>
+#login {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	gap: 12px;
+	background: #0e0e11;
+}
+
+input, button {
+	font-size: 18px;
+	padding: 10px 14px;
+	border-radius: 8px;
+	border: none;
+}
+
+button {
+	background: #4cafef;
+	color: black;
+	font-weight: 600;
+}
+
+#game {
+	display: none;
+	position: absolute;
+	inset: 0;
+}
+
+canvas {
+	width: 100%;
+	height: 100%;
+	touch-action: none;
+}
+
+#hud {
+	position: absolute;
+	top: 8px;
+	left: 8px;
+	font-size: 14px;
+	opacity: 0.85;
+}
+</style>
 </head>
+
 <body>
 
-    <div id="auth-screen">
-        <h1 style="color: var(--accent); letter-spacing: 5px;">NEON BUMP</h1>
-        <input type="text" id="nickname" placeholder="Твой никнейм" maxlength="12">
-        <button onclick="startGame()">ИГРАТЬ</button>
-        <p style="font-size: 0.8rem; opacity: 0.6; margin-top: 20px;">Нажимай на экран, чтобы двигаться</p>
-    </div>
+<div id="login">
+	<h2>Vertical Dots</h2>
+	<input id="nickname" placeholder="Твой ник" maxlength="12" />
+	<button id="start">Играть</button>
+</div>
 
-    <div id="game-ui">
-        <div id="score">Очки: 0</div>
-        <div id="online">В сети: 0</div>
-    </div>
+<div id="game">
+	<div id="hud"></div>
+	<canvas id="canvas"></canvas>
+</div>
 
-    <canvas id="gameCanvas"></canvas>
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getDatabase, ref, set, onValue, onDisconnect, update, remove } 
-        from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+<script>
+/* 🔥 ВСТАВЬ СЮДА СВОЙ FIREBASE CONFIG */
+const firebaseConfig = {
+	apiKey: "YOUR_API_KEY",
+	authDomain: "YOUR_PROJECT.firebaseapp.com",
+	databaseURL: "https://YOUR_PROJECT.firebaseio.com",
+	projectId: "YOUR_PROJECT",
+	appId: "YOUR_APP_ID"
+};
 
-        // Конфигурация (Публичная тестовая БД)
-        const firebaseConfig = {
-            databaseURL: "https://multiplayer-demo-64b54-default-rtdb.europe-west1.firebasedatabase.app/"
-        };
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const auth = firebase.auth();
 
-        const app = initializeApp(firebaseConfig);
-        const db = getDatabase(app);
-        
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        const authScreen = document.getElementById('auth-screen');
-        
-        let playerId;
-        let playerRef;
-        let players = {};
-        let myData = { x: 0, y: 0, score: 0, color: '', name: '' };
-        let targetPos = { x: 0, y: 0 };
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
 
-        // Инициализация размеров
-        function resize() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        }
-        window.addEventListener('resize', resize);
-        resize();
+let W, H;
+let me = null;
+let players = {};
+let orb = { x: 0.5, y: 0.5 };
 
-        window.startGame = function() {
-            const nick = document.getElementById('nickname').value.trim();
-            if(!nick) return alert("Введите имя!");
+function resize() {
+	W = canvas.width = window.innerWidth;
+	H = canvas.height = window.innerHeight;
+}
+window.addEventListener("resize", resize);
+resize();
 
-            playerId = 'p_' + Math.random().toString(36).substr(2, 9);
-            myData = {
-                id: playerId,
-                name: nick,
-                x: Math.random() * canvas.width,
-                y: Math.random() * canvas.height,
-                score: 0,
-                color: `hsl(${Math.random() * 360}, 70%, 60%)`
-            };
+document.getElementById("start").onclick = async () => {
+	const name = document.getElementById("nickname").value.trim();
+	if (!name) return;
 
-            playerRef = ref(db, 'players/' + playerId);
-            set(playerRef, myData);
-            onDisconnect(playerRef).remove();
+	document.getElementById("login").style.display = "none";
+	document.getElementById("game").style.display = "block";
 
-            authScreen.style.display = 'none';
-            targetPos = { x: myData.x, y: myData.y };
+	const cred = await auth.signInAnonymously();
+	const id = cred.user.uid;
 
-            // Слушаем всех игроков
-            onValue(ref(db, 'players'), (snapshot) => {
-                players = snapshot.val() || {};
-                document.getElementById('online').innerText = `В сети: ${Object.keys(players).length}`;
-            });
+	me = {
+		id,
+		name,
+		y: 0.5,
+		score: 0,
+		color: `hsl(${Math.random()*360},70%,60%)`
+	};
 
-            gameLoop();
-        };
+	const ref = db.ref("players/" + id);
+	ref.set(me);
+	ref.onDisconnect().remove();
 
-        // Управление (Touch и Mouse)
-        const handleInput = (e) => {
-            if(!playerId) return;
-            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-            targetPos.x = clientX;
-            targetPos.y = clientY;
-        };
+	db.ref("players").on("value", snap => {
+		players = snap.val() || {};
+	});
 
-        window.addEventListener('mousedown', handleInput);
-        window.addEventListener('touchstart', handleInput);
+	db.ref("orb").on("value", snap => {
+		if (snap.exists()) orb = snap.val();
+	});
 
-        function gameLoop() {
-            // Плавное движение игрока (Interpolation)
-            myData.x += (targetPos.x - myData.x) * 0.05;
-            myData.y += (targetPos.y - myData.y) * 0.05;
+	control();
+	loop();
+};
 
-            // Обновление позиции в БД (не чаще 30 раз в сек для экономии трафика)
-            update(playerRef, { x: myData.x, y: myData.y });
+function control() {
+	let up = false;
 
-            // Отрисовка
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+	const press = () => up = true;
+	const release = () => up = false;
 
-            Object.values(players).forEach(p => {
-                // Тень/Свечение
-                ctx.shadowBlur = 15;
-                ctx.shadowColor = p.color;
-                
-                // Тело игрока
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, 20 + (p.score || 0), 0, Math.PI * 2);
-                ctx.fillStyle = p.color;
-                ctx.fill();
-                ctx.closePath();
-                
-                // Имя
-                ctx.shadowBlur = 0;
-                ctx.fillStyle = 'white';
-                ctx.textAlign = 'center';
-                ctx.fillText(p.name, p.x, p.y - 35);
-            });
+	canvas.addEventListener("touchstart", press);
+	canvas.addEventListener("touchend", release);
+	canvas.addEventListener("mousedown", press);
+	canvas.addEventListener("mouseup", release);
 
-            requestAnimationFrame(gameLoop);
-        }
-    </script>
+	setInterval(() => {
+		if (!me) return;
+		me.y += up ? -0.01 : 0.01;
+		me.y = Math.max(0.05, Math.min(0.95, me.y));
+
+		checkOrb();
+		db.ref("players/" + me.id).update({
+			y: me.y,
+			score: me.score
+		});
+	}, 100);
+}
+
+function checkOrb() {
+	const dx = 0.5 - orb.x;
+	const dy = me.y - orb.y;
+	if (Math.hypot(dx, dy) < 0.05) {
+		me.score++;
+		db.ref("orb").set({
+			x: 0.2 + Math.random()*0.6,
+			y: 0.1 + Math.random()*0.8
+		});
+	}
+}
+
+function loop() {
+	ctx.clearRect(0,0,W,H);
+
+	// orb
+	ctx.fillStyle = "#ffd54f";
+	ctx.beginPath();
+	ctx.arc(W*orb.x, H*orb.y, 8, 0, Math.PI*2);
+	ctx.fill();
+
+	let hud = "";
+
+	for (let id in players) {
+		const p = players[id];
+		const x = W*0.5;
+		const y = H*p.y;
+
+		ctx.fillStyle = p.color;
+		ctx.beginPath();
+		ctx.arc(x, y, 12, 0, Math.PI*2);
+		ctx.fill();
+
+		hud += `${p.name}: ${p.score}<br>`;
+	}
+
+	document.getElementById("hud").innerHTML = hud;
+
+	requestAnimationFrame(loop);
+}
+</script>
+
 </body>
 </html>
