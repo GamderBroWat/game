@@ -1,227 +1,85 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-<meta charset="UTF-8">
+// ... (стили и HTML те же) ...
 
-<meta name="viewport"
-content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+// 🧠 ЛОГИКА И СОСТОЯНИЕ
+let lastSentPos = { x: 0, y: 0 }; // Чтобы не спамить в БД
 
-<title>Arrow World</title>
+function update() {
+  if (!me) return;
+  
+  let dx = 0;
+  let dy = 0;
+  const s = 0.015;
 
-<style>
-*{
-  user-select:none;
-  -webkit-user-select:none;
-  -webkit-touch-callout:none;
-  touch-action:none;
+  if (move.up) dy -= s;
+  if (move.down) dy += s;
+  if (move.left) dx -= s;
+  if (move.right) dx += s;
+
+  if (dx !== 0 || dy !== 0) {
+    me.x = Math.max(0.05, Math.min(0.95, me.x + dx));
+    me.y = Math.max(0.05, Math.min(0.95, me.y + dy));
+
+    // Отправляем в БД только если позиция реально изменилась (с порогом)
+    if (Math.abs(me.x - lastSentPos.x) > 0.001 || Math.abs(me.y - lastSentPos.y) > 0.001) {
+      db.ref("players/" + me.id).update({ x: me.x, y: me.y });
+      lastSentPos = { x: me.x, y: me.y };
+    }
+  }
 }
 
-html,body{
-  margin:0;
-  height:100%;
-  overflow:hidden;
-  background:#0f1115;
-  color:white;
-  font-family:system-ui,sans-serif;
-}
-
-#login{
-  position:absolute;
-  inset:0;
-  display:flex;
-  flex-direction:column;
-  justify-content:center;
-  align-items:center;
-  gap:14px;
-}
-
-input,button{
-  font-size:22px;
-  padding:14px 18px;
-  border-radius:16px;
-  border:none;
-}
-
-button{
-  background:#5eead4;
-  font-weight:700;
-}
-
-canvas{display:none}
-
-#controls{
-  position:absolute;
-  bottom:28px;
-  left:50%;
-  transform:translateX(-50%);
-  display:grid;
-  grid-template:repeat(3,90px)/repeat(3,90px);
-  gap:12px;
-  display:none;
-}
-
-.ctrl{
-  background:rgba(255,255,255,.22);
-  border-radius:24px;
-  font-size:36px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-}
-</style>
-</head>
-
-<body>
-
-<div id="login">
-  <h2>Arrow World</h2>
-  <input id="name" placeholder="Ник">
-  <button id="play">ОК</button>
-</div>
-
-<canvas id="game"></canvas>
-
-<div id="controls">
-  <div></div><div class="ctrl" data="up">⬆️</div><div></div>
-  <div class="ctrl" data="left">⬅️</div><div></div><div class="ctrl" data="right">➡️</div>
-  <div></div><div class="ctrl" data="down">⬇️</div><div></div>
-</div>
-
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-
-<script>
-// 🚫 УБИЙСТВО ЗУМА (iOS SAFE)
-document.addEventListener('gesturestart',e=>e.preventDefault());
-document.addEventListener('gesturechange',e=>e.preventDefault());
-document.addEventListener('gestureend',e=>e.preventDefault());
-document.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
-
-// 🔥 FIREBASE
-firebase.initializeApp({
-  apiKey:"AIzaSyCnJQPTInx6HF6KarGXBYGQslKanlxLl7M",
-  authDomain:"arrowgame-94ba7.firebaseapp.com",
-  databaseURL:"https://arrowgame-94ba7-default-rtdb.firebaseio.com",
-  projectId:"arrowgame-94ba7"
+// 🎮 УЛУЧШЕННЫЕ КОНТРОЛЛЕРЫ
+document.querySelectorAll(".ctrl").forEach(b => {
+  const d = b.dataset.dir;
+  // Добавляем обработку Touch и Mouse корректно
+  const start = (e) => { e.preventDefault(); move[d] = 1; };
+  const end = (e) => { e.preventDefault(); move[d] = 0; };
+  
+  b.addEventListener('mousedown', start);
+  b.addEventListener('touchstart', start);
+  // Глобальное снятие нажатия, чтобы персонаж не "залипал"
+  window.addEventListener('mouseup', () => move[d] = 0);
+  window.addEventListener('touchend', () => move[d] = 0);
 });
 
-const db=firebase.database();
-firebase.auth().signInAnonymously();
+// 🎨 ОПТИМИЗИРОВАННЫЙ РЕНДЕР
+function loop() {
+  ctx.clearRect(0, 0, W, H);
+  
+  // Рисуем сетку для ощущения пространства
+  ctx.strokeStyle = "rgba(255,255,255,0.05)";
+  for(let i=0; i<W; i+=50) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,H); ctx.stroke(); }
+  for(let i=0; i<H; i+=50) { ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(W,i); ctx.stroke(); }
 
-const canvas=document.getElementById("game");
-const ctx=canvas.getContext("2d");
+  ctx.textAlign = "center";
+  ctx.font = "bold 16px system-ui";
 
-let W,H,DPR=window.devicePixelRatio||1;
-let me=null;
-let players={};
-let move={up:0,down:0,left:0,right:0};
-let myName="";
+  for (const id in players) {
+    const p = players[id];
+    if (!p || p.x === undefined) continue;
 
-// 🎮 КНОПКА РАБОТАЕТ ВСЕГДА
-document.getElementById("play").onclick=()=>{
-  const n=document.getElementById("name").value.trim();
-  if(!n)return;
-  myName=n;
-  tryStart();
-};
+    // Плавное следование (простая интерполяция)
+    // Если это не наш персонаж, можно добавить lerp, но для начала хватит и этого
+    const x = W * p.x;
+    const y = H * p.y;
 
-// 🔑 ЖДЁМ АВТОРИЗАЦИЮ
-firebase.auth().onAuthStateChanged(user=>{
-  if(user) tryStart();
-});
-
-function tryStart(){
-  if(me || !firebase.auth().currentUser || !myName) return;
-
-  document.getElementById("login").style.display="none";
-  canvas.style.display="block";
-  document.getElementById("controls").style.display="grid";
-
-  resize();
-
-  const uid=firebase.auth().currentUser.uid;
-  me={
-    id:uid,
-    name:myName,
-    x:0.5,
-    y:0.5,
-    color:`hsl(${Math.random()*360},70%,60%)`
-  };
-
-  const ref=db.ref("players/"+uid);
-  ref.set(me);
-  ref.onDisconnect().remove();
-  addEventListener("beforeunload",()=>ref.remove());
-
-  db.ref("players").on("value",s=>{
-    players=s.val()||{};
-  });
-
-  setInterval(update,50);
-  loop();
-}
-
-// 📐 CANVAS
-function resize(){
-  W=innerWidth;
-  H=innerHeight;
-  canvas.width=W*DPR;
-  canvas.height=H*DPR;
-  canvas.style.width=W+"px";
-  canvas.style.height=H+"px";
-  ctx.setTransform(DPR,0,0,DPR,0,0);
-}
-addEventListener("resize",resize);
-
-// 🎮 УПРАВЛЕНИЕ
-document.querySelectorAll(".ctrl").forEach(b=>{
-  const d=b.dataset;
-  b.ontouchstart=b.onmousedown=()=>move[b.getAttribute("data")]=1;
-  b.ontouchend=b.onmouseup=()=>move[b.getAttribute("data")]=0;
-});
-
-// 🧠 ЛОГИКА
-function update(){
-  if(!me)return;
-  const s=0.02;
-  if(move.up)me.y-=s;
-  if(move.down)me.y+=s;
-  if(move.left)me.x-=s;
-  if(move.right)me.x+=s;
-  me.x=Math.max(.05,Math.min(.95,me.x));
-  me.y=Math.max(.05,Math.min(.95,me.y));
-  db.ref("players/"+me.id).update({x:me.x,y:me.y});
-}
-
-// 🎨 РЕНДЕР
-function loop(){
-  ctx.clearRect(0,0,W,H);
-  ctx.textAlign="center";
-  ctx.font="22px system-ui";
-
-  for(const id in players){
-    const p=players[id];
-    if(!p||!p.name)continue;
-
-    const x=W*p.x;
-    const y=H*p.y;
-
-    ctx.fillStyle=p.color;
+    // Тело игрока
+    ctx.fillStyle = p.color || '#fff';
     ctx.beginPath();
-    ctx.arc(x,y,30,0,Math.PI*2);
+    ctx.arc(x, y, 20, 0, Math.PI * 2);
     ctx.fill();
+    
+    // Обводка для красоты
+    ctx.strokeStyle = "white";
+    ctx.lineWidth = 2;
+    ctx.stroke();
 
-    ctx.strokeStyle="#000";
-    ctx.lineWidth=4;
-    ctx.strokeText(p.name,x,y-46);
-    ctx.fillStyle="#fff";
-    ctx.fillText(p.name,x,y-46);
+    // Никнейм
+    ctx.fillStyle = "white";
+    ctx.shadowBlur = 4;
+    ctx.shadowColor = "black";
+    ctx.fillText(p.name, x, y - 35);
+    ctx.shadowBlur = 0;
   }
 
   requestAnimationFrame(loop);
 }
-</script>
-
-</body>
-</html>
