@@ -1,18 +1,18 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-<title>Vertical Dots — Multiplayer</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Tap Float — Online</title>
 
 <style>
 html, body {
 	margin: 0;
 	padding: 0;
-	background: #0e0e11;
+	height: 100%;
+	background: #0f1115;
 	color: white;
 	font-family: system-ui, sans-serif;
-	height: 100%;
 	overflow: hidden;
 }
 
@@ -24,40 +24,34 @@ html, body {
 	justify-content: center;
 	align-items: center;
 	gap: 12px;
-	background: #0e0e11;
 }
 
 input, button {
 	font-size: 18px;
 	padding: 10px 14px;
-	border-radius: 8px;
+	border-radius: 10px;
 	border: none;
 }
 
 button {
-	background: #4cafef;
-	color: black;
+	background: #5eead4;
+	color: #000;
 	font-weight: 600;
-}
-
-#game {
-	display: none;
-	position: absolute;
-	inset: 0;
 }
 
 canvas {
 	width: 100%;
 	height: 100%;
 	touch-action: none;
+	display: none;
 }
 
-#hud {
+#info {
 	position: absolute;
-	top: 8px;
-	left: 8px;
+	top: 10px;
+	left: 10px;
 	font-size: 14px;
-	opacity: 0.85;
+	opacity: 0.8;
 }
 </style>
 </head>
@@ -65,147 +59,128 @@ canvas {
 <body>
 
 <div id="login">
-	<h2>Vertical Dots</h2>
-	<input id="nickname" placeholder="Твой ник" maxlength="12" />
-	<button id="start">Играть</button>
+	<h2>Tap Float</h2>
+	<input id="name" placeholder="Твой ник" maxlength="10">
+	<button onclick="start()">Играть</button>
 </div>
 
-<div id="game">
-	<div id="hud"></div>
-	<canvas id="canvas"></canvas>
-</div>
+<div id="info"></div>
+<canvas id="game"></canvas>
 
-<!-- Firebase -->
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 
 <script>
-/* 🔥 ВСТАВЬ СЮДА СВОЙ FIREBASE CONFIG */
-const firebaseConfig = {
-	apiKey: "YOUR_API_KEY",
-	authDomain: "YOUR_PROJECT.firebaseapp.com",
-	databaseURL: "https://YOUR_PROJECT.firebaseio.com",
-	projectId: "YOUR_PROJECT",
-	appId: "YOUR_APP_ID"
-};
-
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
-const auth = firebase.auth();
-
-const canvas = document.getElementById("canvas");
+const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
+const info = document.getElementById("info");
 
 let W, H;
-let me = null;
-let players = {};
-let orb = { x: 0.5, y: 0.5 };
+let up = false;
+let me;
+let peers = {};
+let connections = [];
 
 function resize() {
 	W = canvas.width = window.innerWidth;
 	H = canvas.height = window.innerHeight;
 }
 window.addEventListener("resize", resize);
-resize();
 
-document.getElementById("start").onclick = async () => {
-	const name = document.getElementById("nickname").value.trim();
+function start() {
+	const name = document.getElementById("name").value.trim();
 	if (!name) return;
 
 	document.getElementById("login").style.display = "none";
-	document.getElementById("game").style.display = "block";
-
-	const cred = await auth.signInAnonymously();
-	const id = cred.user.uid;
+	canvas.style.display = "block";
+	resize();
 
 	me = {
-		id,
+		id: null,
 		name,
 		y: 0.5,
-		score: 0,
 		color: `hsl(${Math.random()*360},70%,60%)`
 	};
 
-	const ref = db.ref("players/" + id);
-	ref.set(me);
-	ref.onDisconnect().remove();
+	const peer = new Peer();
 
-	db.ref("players").on("value", snap => {
-		players = snap.val() || {};
+	peer.on("open", id => {
+		me.id = id;
+		info.innerHTML = "Онлайн ID: " + id;
+
+		// подключаемся ко всем известным
+		Object.values(peers).forEach(p => connect(peer, p.id));
 	});
 
-	db.ref("orb").on("value", snap => {
-		if (snap.exists()) orb = snap.val();
+	peer.on("connection", conn => {
+		setup(conn);
 	});
+
+	setInterval(() => {
+		me.y += up ? -0.01 : 0.01;
+		me.y = Math.max(0.05, Math.min(0.95, me.y));
+		broadcast();
+	}, 100);
 
 	control();
 	loop();
-};
-
-function control() {
-	let up = false;
-
-	const press = () => up = true;
-	const release = () => up = false;
-
-	canvas.addEventListener("touchstart", press);
-	canvas.addEventListener("touchend", release);
-	canvas.addEventListener("mousedown", press);
-	canvas.addEventListener("mouseup", release);
-
-	setInterval(() => {
-		if (!me) return;
-		me.y += up ? -0.01 : 0.01;
-		me.y = Math.max(0.05, Math.min(0.95, me.y));
-
-		checkOrb();
-		db.ref("players/" + me.id).update({
-			y: me.y,
-			score: me.score
-		});
-	}, 100);
 }
 
-function checkOrb() {
-	const dx = 0.5 - orb.x;
-	const dy = me.y - orb.y;
-	if (Math.hypot(dx, dy) < 0.05) {
-		me.score++;
-		db.ref("orb").set({
-			x: 0.2 + Math.random()*0.6,
-			y: 0.1 + Math.random()*0.8
-		});
-	}
+function connect(peer, id) {
+	if (id === me.id) return;
+	const conn = peer.connect(id);
+	setup(conn);
+}
+
+function setup(conn) {
+	conn.on("open", () => {
+		connections.push(conn);
+	});
+	conn.on("data", data => {
+		peers[data.id] = data;
+	});
+}
+
+function broadcast() {
+	connections.forEach(c => {
+		c.send(me);
+	});
+}
+
+function control() {
+	const down = () => up = true;
+	const upf = () => up = false;
+
+	canvas.addEventListener("touchstart", down);
+	canvas.addEventListener("touchend", upf);
+	canvas.addEventListener("mousedown", down);
+	canvas.addEventListener("mouseup", upf);
 }
 
 function loop() {
 	ctx.clearRect(0,0,W,H);
 
-	// orb
-	ctx.fillStyle = "#ffd54f";
-	ctx.beginPath();
-	ctx.arc(W*orb.x, H*orb.y, 8, 0, Math.PI*2);
-	ctx.fill();
+	draw(me);
 
-	let hud = "";
-
-	for (let id in players) {
-		const p = players[id];
-		const x = W*0.5;
-		const y = H*p.y;
-
-		ctx.fillStyle = p.color;
-		ctx.beginPath();
-		ctx.arc(x, y, 12, 0, Math.PI*2);
-		ctx.fill();
-
-		hud += `${p.name}: ${p.score}<br>`;
+	for (let id in peers) {
+		draw(peers[id]);
 	}
 
-	document.getElementById("hud").innerHTML = hud;
-
 	requestAnimationFrame(loop);
+}
+
+function draw(p) {
+	const x = W / 2;
+	const y = H * p.y;
+
+	ctx.fillStyle = p.color;
+	ctx.beginPath();
+	ctx.arc(x, y, 14, 0, Math.PI*2);
+	ctx.fill();
+
+	ctx.fillStyle = "#fff";
+	ctx.font = "12px sans-serif";
+	ctx.textAlign = "center";
+	ctx.fillText(p.name, x, y - 18);
 }
 </script>
 
