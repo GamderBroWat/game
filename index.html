@@ -79,7 +79,7 @@ firebase.initializeApp({
   apiKey: "AIzaSyAViU2ttzIWAmmxB6tSwJ0thCrCTba7Cyk",
   authDomain: "best-ec082.firebaseapp.com",
   projectId: "best-ec082",
-  storageBucket: "best-ec082.firebasestorage.app",
+  storageBucket: "best-ec082.appspot.com",
   messagingSenderId: "782817955265",
   appId: "1:782817955265:web:0265b75bb0bfb4884bb340",
   databaseURL: "https://best-ec082-default-rtdb.firebaseio.com/"
@@ -102,12 +102,16 @@ document.getElementById("enter").onclick = async () => {
   const res = await auth.signInAnonymously();
   uid = res.user.uid;
 
+  // ❗ Safari / iOS SAFE getUserMedia
   localStream = await navigator.mediaDevices.getUserMedia({
-    video: { facingMode: "user" },
+    video: {
+      width: { ideal: 640 },
+      height: { ideal: 640 }
+    },
     audio: false
   });
 
-  addVideo("local", localStream, true);
+  addVideo("local", localStream);
 
   document.getElementById("login").style.display = "none";
   arena.style.display = "grid";
@@ -134,7 +138,7 @@ document.getElementById("enter").onclick = async () => {
 };
 
 // ===== UI =====
-function addVideo(key, stream, muted = false) {
+function addVideo(key, stream) {
   if (document.querySelector(`[data-peer="${key}"]`)) return;
 
   const box = document.createElement("div");
@@ -143,11 +147,12 @@ function addVideo(key, stream, muted = false) {
   const video = document.createElement("video");
   video.dataset.peer = key;
   video.playsInline = true;
-  video.muted = muted;
+  video.muted = true;            // ❗ ВСЕ video muted (iOS)
+  video.autoplay = false;
   video.srcObject = stream;
 
   video.addEventListener("loadedmetadata", () => {
-    video.play().catch(() => {});
+    video.play().catch(()=>{});
   });
 
   box.appendChild(video);
@@ -157,16 +162,25 @@ function addVideo(key, stream, muted = false) {
 // ===== WEBRTC =====
 function createPeer(otherId, initiator) {
   const pc = new RTCPeerConnection({
-    iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+    iceServers: [
+      { urls: "stun:stun.l.google.com:19302" },
+      {
+        urls: "turn:openrelay.metered.ca:80",
+        username: "openrelayproject",
+        credential: "openrelayproject"
+      }
+    ]
   });
 
   peers[otherId] = pc;
 
-  localStream.getTracks().forEach(track =>
-    pc.addTrack(track, localStream)
-  );
+  localStream.getTracks().forEach(track => {
+    pc.addTrack(track, localStream);
+  });
 
-  pc.ontrack = e => addVideo(otherId, e.streams[0]);
+  pc.ontrack = e => {
+    addVideo(otherId, e.streams[0]);
+  };
 
   pc.onicecandidate = e => {
     if (e.candidate) {
@@ -183,8 +197,11 @@ function createPeer(otherId, initiator) {
 }
 
 async function handleSignal(fromId, data) {
+  if (!peers[fromId]) {
+    createPeer(fromId, false);
+  }
+
   const pc = peers[fromId];
-  if (!pc) return;
 
   if (data.sdp) {
     await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
@@ -200,5 +217,6 @@ async function handleSignal(fromId, data) {
   }
 }
 </script>
+
 </body>
 </html>
