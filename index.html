@@ -2,17 +2,73 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Arrow World — Online</title>
+<meta name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+<title>Arrow World</title>
 
 <style>
-html,body{margin:0;height:100%;background:#0f1115;color:#fff;font-family:sans-serif;overflow:hidden}
-#login{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:10px}
-input,button{font-size:18px;padding:10px;border-radius:10px;border:none}
-button{background:#5eead4;font-weight:600}
-canvas{width:100%;height:100%;display:none}
-#controls{position:absolute;bottom:20px;left:20px;display:grid;grid-template:repeat(3,60px)/repeat(3,60px);gap:6px;display:none}
-.ctrl{background:rgba(255,255,255,.25);border-radius:12px;font-size:26px;display:flex;align-items:center;justify-content:center}
+*{
+  user-select:none;
+  -webkit-user-select:none;
+  -webkit-touch-callout:none;
+  touch-action:none;
+}
+
+html,body{
+  margin:0;
+  height:100%;
+  background:#0f1115;
+  color:#fff;
+  font-family:system-ui,sans-serif;
+  overflow:hidden;
+}
+
+#login{
+  position:absolute;
+  inset:0;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  align-items:center;
+  gap:12px;
+}
+
+input,button{
+  font-size:20px;
+  padding:12px 16px;
+  border-radius:14px;
+  border:none;
+}
+
+button{
+  background:#5eead4;
+  font-weight:700;
+}
+
+canvas{
+  display:none;
+}
+
+#controls{
+  position:absolute;
+  bottom:24px;
+  left:50%;
+  transform:translateX(-50%);
+  display:grid;
+  grid-template:repeat(3,80px)/repeat(3,80px);
+  gap:10px;
+  display:none;
+}
+
+.ctrl{
+  background:rgba(255,255,255,.18);
+  border-radius:20px;
+  font-size:34px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
 </style>
 </head>
 
@@ -37,22 +93,31 @@ canvas{width:100%;height:100%;display:none}
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
 <script>
-// 🔴 СЮДА ВСТАВЛЯЕТСЯ ТВОЙ firebaseConfig
 firebase.initializeApp({
-  apiKey: "AIzaSyCnJQPTInx6HF6KarGXBYGQslKanlxLl7M",
-  authDomain: "arrowgame-94ba7.firebaseapp.com",
-  databaseURL: "https://arrowgame-94ba7-default-rtdb.firebaseio.com",
-  projectId: "arrowgame-94ba7"
+  apiKey:"AIzaSyCnJQPTInx6HF6KarGXBYGQslKanlxLl7M",
+  authDomain:"arrowgame-94ba7.firebaseapp.com",
+  databaseURL:"https://arrowgame-94ba7-default-rtdb.firebaseio.com",
+  projectId:"arrowgame-94ba7"
 });
 
-const db = firebase.database();
+const db=firebase.database();
 firebase.auth().signInAnonymously();
 
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
-let W,H,me,players={},move={up:0,down:0,left:0,right:0};
+const canvas=document.getElementById("game");
+const ctx=canvas.getContext("2d");
 
-function resize(){W=canvas.width=innerWidth;H=canvas.height=innerHeight}
+let DPR=window.devicePixelRatio||1;
+let W,H,me=null,players={},move={up:0,down:0,left:0,right:0};
+
+function resize(){
+  W=innerWidth;
+  H=innerHeight;
+  canvas.width=W*DPR;
+  canvas.height=H*DPR;
+  canvas.style.width=W+"px";
+  canvas.style.height=H+"px";
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
 addEventListener("resize",resize);
 
 function start(){
@@ -64,27 +129,40 @@ function start(){
   document.getElementById("controls").style.display="grid";
   resize();
 
-  const id=Math.random().toString(36).slice(2);
-  me={id,name,x:.5,y:.5,color:`hsl(${Math.random()*360},70%,60%)`};
+  const id=firebase.auth().currentUser.uid;
+  me={
+    id,
+    name,
+    x:0.5,
+    y:0.5,
+    color:`hsl(${Math.random()*360},70%,60%)`
+  };
 
   const ref=db.ref("players/"+id);
   ref.set(me);
   ref.onDisconnect().remove();
 
+  addEventListener("beforeunload",()=>ref.remove());
+
   db.ref("players").on("value",s=>players=s.val()||{});
 
   document.querySelectorAll(".ctrl").forEach(b=>{
     const d=b.dataset;
-    b.ontouchstart=b.onmousedown=()=>move[b.getAttribute("data")]=1;
-    b.ontouchend=b.onmouseup=()=>move[b.getAttribute("data")]=0;
+    b.ontouchstart=b.onmousedown=()=>move[b.dataset.key]=1;
+    b.ontouchend=b.onmouseup=()=>move[b.dataset.key]=0;
   });
 
   setInterval(update,50);
   loop();
 }
 
+document.querySelectorAll(".ctrl").forEach(b=>{
+  b.dataset.key=b.getAttribute("data");
+});
+
 function update(){
-  const s=.01;
+  if(!me)return;
+  const s=0.015;
   if(move.up)me.y-=s;
   if(move.down)me.y+=s;
   if(move.left)me.x-=s;
@@ -96,16 +174,29 @@ function update(){
 
 function loop(){
   ctx.clearRect(0,0,W,H);
+  ctx.font="18px system-ui";
+  ctx.textAlign="center";
+  ctx.textBaseline="middle";
+
   for(const id in players){
     const p=players[id];
+    if(!p.name)continue;
+
+    const x=W*p.x;
+    const y=H*p.y;
+
     ctx.fillStyle=p.color;
     ctx.beginPath();
-    ctx.arc(W*p.x,H*p.y,14,0,Math.PI*2);
+    ctx.arc(x,y,26,0,Math.PI*2);
     ctx.fill();
+
+    ctx.lineWidth=4;
+    ctx.strokeStyle="#000";
+    ctx.strokeText(p.name,x,y-40);
     ctx.fillStyle="#fff";
-    ctx.textAlign="center";
-    ctx.fillText(p.name,W*p.x,H*p.y-18);
+    ctx.fillText(p.name,x,y-40);
   }
+
   requestAnimationFrame(loop);
 }
 </script>
