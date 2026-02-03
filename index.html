@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>DOT ARENA CAM</title>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -14,7 +14,7 @@ body {
   margin: 0;
   background: #0b1020;
   color: white;
-  font-family: system-ui;
+  font-family: system-ui, sans-serif;
 }
 
 #login {
@@ -44,7 +44,7 @@ button {
   padding: 12px;
   display: grid;
   grid-template-columns: repeat(auto-fill, 2cm);
-  gap: 8px;
+  gap: 10px;
 }
 
 .video-box {
@@ -52,7 +52,7 @@ button {
   height: 2cm;
   border-radius: 8px;
   overflow: hidden;
-  background: #000;
+  background: black;
   border: 2px solid #00ffd0;
 }
 
@@ -67,14 +67,14 @@ video {
 
 <div id="login">
   <h2>📷 DOT ARENA CAM</h2>
-  <input id="nick" placeholder="Никнейм" />
+  <input id="nick" placeholder="Никнейм">
   <button id="enter">Войти</button>
 </div>
 
 <div id="arena"></div>
 
 <script>
-/* Firebase */
+// ================= FIREBASE =================
 firebase.initializeApp({
   apiKey: "AIzaSyAViU2ttzIWAmmxB6tSwJ0thCrCTba7Cyk",
   authDomain: "best-ec082.firebaseapp.com",
@@ -88,6 +88,7 @@ firebase.initializeApp({
 const auth = firebase.auth();
 const db = firebase.database();
 
+// ================= UI =================
 const login = document.getElementById("login");
 const arena = document.getElementById("arena");
 
@@ -99,7 +100,7 @@ const rtcConfig = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
 };
 
-/* Login */
+// ================= LOGIN =================
 document.getElementById("enter").onclick = async () => {
   const nickname = document.getElementById("nick").value.trim();
   if (!nickname) return alert("Введите ник");
@@ -113,6 +114,7 @@ document.getElementById("enter").onclick = async () => {
   login.style.display = "none";
   arena.style.display = "grid";
 
+  // CAMERA (FRONT)
   localStream = await navigator.mediaDevices.getUserMedia({
     video: { facingMode: "user" },
     audio: false
@@ -120,11 +122,15 @@ document.getElementById("enter").onclick = async () => {
 
   addVideo(uid, localStream, true);
 
+  // CREATE PEERS
   db.ref("players").on("child_added", snap => {
-    const id = snap.key;
-    if (id !== uid) createPeer(id, true);
+    const otherId = snap.key;
+    if (otherId !== uid && !peers[otherId]) {
+      createPeer(otherId, true);
+    }
   });
 
+  // SIGNALING
   db.ref("signals/" + uid).on("child_added", async snap => {
     const { from, data } = snap.val();
     if (!peers[from]) createPeer(from, false);
@@ -132,7 +138,7 @@ document.getElementById("enter").onclick = async () => {
   });
 };
 
-/* Video UI */
+// ================= VIDEO UI =================
 function addVideo(id, stream, muted = false) {
   if (document.getElementById("v_" + id)) return;
 
@@ -141,23 +147,27 @@ function addVideo(id, stream, muted = false) {
 
   const video = document.createElement("video");
   video.id = "v_" + id;
+  video.srcObject = stream;
   video.autoplay = true;
   video.playsInline = true;
   video.muted = muted;
-  video.srcObject = stream;
 
   box.appendChild(video);
   arena.appendChild(box);
+
+  video.play().catch(() => {});
 }
 
-/* WebRTC */
+// ================= WEBRTC =================
 function createPeer(otherId, initiator) {
   const pc = new RTCPeerConnection(rtcConfig);
   peers[otherId] = pc;
 
-  localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+  localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
 
-  pc.ontrack = e => addVideo(otherId, e.streams[0]);
+  pc.ontrack = e => {
+    addVideo(otherId, e.streams[0]);
+  };
 
   pc.onicecandidate = e => {
     if (e.candidate) {
@@ -170,25 +180,39 @@ function createPeer(otherId, initiator) {
 
   pc.signal = async data => {
     if (data.sdp) {
-      await pc.setRemoteDescription(data.sdp);
+      await pc.setRemoteDescription(
+        new RTCSessionDescription(data.sdp)
+      );
+
       if (data.sdp.type === "offer") {
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
+
         db.ref("signals/" + otherId).push({
           from: uid,
           data: { sdp: pc.localDescription }
         });
       }
     }
-    if (data.ice) await pc.addIceCandidate(data.ice);
+
+    if (data.ice) {
+      try {
+        await pc.addIceCandidate(
+          new RTCIceCandidate(data.ice)
+        );
+      } catch (e) {
+        console.warn("ICE error", e);
+      }
+    }
   };
 
   if (initiator) {
-    pc.createOffer().then(offer => {
-      pc.setLocalDescription(offer);
+    pc.createOffer().then(async offer => {
+      await pc.setLocalDescription(offer);
+
       db.ref("signals/" + otherId).push({
         from: uid,
-        data: { sdp: offer }
+        data: { sdp: pc.localDescription }
       });
     });
   }
