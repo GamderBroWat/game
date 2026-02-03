@@ -97,57 +97,61 @@ const arena = document.getElementById("arena");
 // ===== LOGIN =====
 document.getElementById("enter").onclick = async () => {
   const nickname = document.getElementById("nick").value.trim();
-  if (!nickname) return alert("Введите ник");
+  if (!nickname) return;
 
   const res = await auth.signInAnonymously();
   uid = res.user.uid;
 
-  await navigator.mediaDevices.getUserMedia({
+  localStream = await navigator.mediaDevices.getUserMedia({
     video: { facingMode: "user" },
     audio: false
-  }).then(s => localStream = s);
+  });
 
-  addVideo(uid, localStream, true);
+  addVideo("local", localStream, true);
 
   document.getElementById("login").style.display = "none";
   arena.style.display = "grid";
 
-  await db.ref("players/" + uid).set({ nickname });
+  const joinedAt = Date.now();
+
+  await db.ref("players/" + uid).set({ nickname, joinedAt });
   db.ref("players/" + uid).onDisconnect().remove();
 
   db.ref("players").on("child_added", snap => {
     const otherId = snap.key;
-    if (otherId !== uid && !peers[otherId]) {
-      const initiator = uid < otherId;
-      createPeer(otherId, initiator);
-    }
+    const other = snap.val();
+    if (otherId === uid || peers[otherId]) return;
+
+    const initiator = joinedAt < other.joinedAt;
+    createPeer(otherId, initiator);
   });
 
   db.ref("signals/" + uid).on("child_added", snap => {
     const fromId = snap.key;
-    snap.forEach(msg => {
-      handleSignal(fromId, msg.val());
-    });
+    snap.forEach(msg => handleSignal(fromId, msg.val()));
+    db.ref(`signals/${uid}/${fromId}`).remove();
   });
 };
 
 // ===== UI =====
-function addVideo(id, stream, muted=false) {
-  if (document.getElementById("v_"+id)) return;
+function addVideo(key, stream, muted = false) {
+  if (document.querySelector(`[data-peer="${key}"]`)) return;
 
   const box = document.createElement("div");
   box.className = "video-box";
 
   const video = document.createElement("video");
-  video.id = "v_"+id;
-  video.srcObject = stream;
-  video.autoplay = true;
+  video.dataset.peer = key;
   video.playsInline = true;
   video.muted = muted;
+  video.srcObject = stream;
+
+  video.addEventListener("loadedmetadata", () => {
+    video.play().catch(() => {});
+  });
 
   box.appendChild(video);
   arena.appendChild(box);
-  video.play().catch(()=>{});
 }
 
 // ===== WEBRTC =====
@@ -158,7 +162,9 @@ function createPeer(otherId, initiator) {
 
   peers[otherId] = pc;
 
-  localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+  localStream.getTracks().forEach(track =>
+    pc.addTrack(track, localStream)
+  );
 
   pc.ontrack = e => addVideo(otherId, e.streams[0]);
 
@@ -168,12 +174,12 @@ function createPeer(otherId, initiator) {
     }
   };
 
-  if (initiator) {
-    pc.createOffer().then(o => {
-      pc.setLocalDescription(o);
-      db.ref(`signals/${otherId}/${uid}`).push({ sdp: o });
-    });
-  }
+  pc.onnegotiationneeded = async () => {
+    if (!initiator) return;
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    db.ref(`signals/${otherId}/${uid}`).push({ sdp: offer });
+  };
 }
 
 async function handleSignal(fromId, data) {
@@ -190,9 +196,7 @@ async function handleSignal(fromId, data) {
   }
 
   if (data.ice) {
-    try {
-      await pc.addIceCandidate(new RTCIceCandidate(data.ice));
-    } catch {}
+    await pc.addIceCandidate(new RTCIceCandidate(data.ice));
   }
 }
 </script>
