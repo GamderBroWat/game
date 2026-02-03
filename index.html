@@ -3,164 +3,110 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Arrow World</title>
+<title>Arrow World — Online</title>
 
 <style>
-html, body {
-	margin: 0;
-	padding: 0;
-	height: 100%;
-	background: #0f1115;
-	color: white;
-	font-family: system-ui, sans-serif;
-	overflow: hidden;
-}
-
-#login {
-	position: absolute;
-	inset: 0;
-	display: flex;
-	flex-direction: column;
-	justify-content: center;
-	align-items: center;
-	gap: 12px;
-}
-
-input, button {
-	font-size: 18px;
-	padding: 10px 14px;
-	border-radius: 10px;
-	border: none;
-}
-
-button {
-	background: #5eead4;
-	color: #000;
-	font-weight: 600;
-}
-
-canvas {
-	width: 100%;
-	height: 100%;
-	display: none;
-}
-
-#controls {
-	position: absolute;
-	bottom: 20px;
-	left: 20px;
-	display: grid;
-	grid-template-columns: 60px 60px 60px;
-	grid-template-rows: 60px 60px 60px;
-	gap: 6px;
-	display: none;
-}
-
-.ctrl {
-	background: rgba(255,255,255,0.25);
-	border-radius: 12px;
-	font-size: 26px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	user-select: none;
-}
+html,body{margin:0;height:100%;background:#0f1115;color:#fff;font-family:sans-serif;overflow:hidden}
+#login{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:10px}
+input,button{font-size:18px;padding:10px;border-radius:10px;border:none}
+button{background:#5eead4;font-weight:600}
+canvas{width:100%;height:100%;display:none}
+#controls{position:absolute;bottom:20px;left:20px;display:grid;grid-template:repeat(3,60px)/repeat(3,60px);gap:6px;display:none}
+.ctrl{background:rgba(255,255,255,.25);border-radius:12px;font-size:26px;display:flex;align-items:center;justify-content:center}
 </style>
 </head>
 
 <body>
 
 <div id="login">
-	<h2>Arrow World</h2>
-	<input id="name" placeholder="Твой ник" maxlength="10">
-	<button onclick="start()">Играть</button>
+  <h2>Arrow World</h2>
+  <input id="name" placeholder="Ник">
+  <button onclick="start()">Играть</button>
 </div>
 
 <canvas id="game"></canvas>
 
 <div id="controls">
-	<div></div><div class="ctrl" data="up">⬆️</div><div></div>
-	<div class="ctrl" data="left">⬅️</div><div></div><div class="ctrl" data="right">➡️</div>
-	<div></div><div class="ctrl" data="down">⬇️</div><div></div>
+  <div></div><div class="ctrl" data="up">⬆️</div><div></div>
+  <div class="ctrl" data="left">⬅️</div><div></div><div class="ctrl" data="right">➡️</div>
+  <div></div><div class="ctrl" data="down">⬇️</div><div></div>
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+
 <script>
+// 🔴 СЮДА ВСТАВЛЯЕТСЯ ТВОЙ firebaseConfig
+firebase.initializeApp({
+  apiKey: "AIzaSyCnJQPTInx6HF6KarGXBYGQslKanlxLl7M",
+  authDomain: "arrowgame-94ba7.firebaseapp.com",
+  databaseURL: "https://arrowgame-94ba7-default-rtdb.firebaseio.com",
+  projectId: "arrowgame-94ba7"
+});
+
+const db = firebase.database();
+firebase.auth().signInAnonymously();
+
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
-const controls = document.getElementById("controls");
+let W,H,me,players={},move={up:0,down:0,left:0,right:0};
 
-let W, H;
-let me = null;
-let move = { up:false, down:false, left:false, right:false };
+function resize(){W=canvas.width=innerWidth;H=canvas.height=innerHeight}
+addEventListener("resize",resize);
 
-function resize() {
-	W = canvas.width = window.innerWidth;
-	H = canvas.height = window.innerHeight;
-}
-window.addEventListener("resize", resize);
+function start(){
+  const name=document.getElementById("name").value.trim();
+  if(!name)return;
 
-function start() {
-	const name = document.getElementById("name").value.trim();
-	if (!name) return;
+  document.getElementById("login").style.display="none";
+  canvas.style.display="block";
+  document.getElementById("controls").style.display="grid";
+  resize();
 
-	document.getElementById("login").style.display = "none";
-	canvas.style.display = "block";
-	controls.style.display = "grid";
-	resize();
+  const id=Math.random().toString(36).slice(2);
+  me={id,name,x:.5,y:.5,color:`hsl(${Math.random()*360},70%,60%)`};
 
-	// 🔥 СОЗДАЁМ ИГРОКА СРАЗУ
-	me = {
-		name,
-		x: 0.5,
-		y: 0.5,
-		color: `hsl(${Math.random()*360},70%,60%)`
-	};
+  const ref=db.ref("players/"+id);
+  ref.set(me);
+  ref.onDisconnect().remove();
 
-	setupControls();
-	setInterval(update, 50);
-	loop();
-}
+  db.ref("players").on("value",s=>players=s.val()||{});
 
-function setupControls() {
-	document.querySelectorAll(".ctrl").forEach(btn => {
-		const d = btn.getAttribute("data");
-		btn.ontouchstart = () => move[d] = true;
-		btn.ontouchend = () => move[d] = false;
-		btn.onmousedown = () => move[d] = true;
-		btn.onmouseup = () => move[d] = false;
-	});
+  document.querySelectorAll(".ctrl").forEach(b=>{
+    const d=b.dataset;
+    b.ontouchstart=b.onmousedown=()=>move[b.getAttribute("data")]=1;
+    b.ontouchend=b.onmouseup=()=>move[b.getAttribute("data")]=0;
+  });
+
+  setInterval(update,50);
+  loop();
 }
 
-function update() {
-	const s = 0.01;
-	if (move.up) me.y -= s;
-	if (move.down) me.y += s;
-	if (move.left) me.x -= s;
-	if (move.right) me.x += s;
-
-	me.x = Math.max(0.05, Math.min(0.95, me.x));
-	me.y = Math.max(0.05, Math.min(0.95, me.y));
+function update(){
+  const s=.01;
+  if(move.up)me.y-=s;
+  if(move.down)me.y+=s;
+  if(move.left)me.x-=s;
+  if(move.right)me.x+=s;
+  me.x=Math.max(.05,Math.min(.95,me.x));
+  me.y=Math.max(.05,Math.min(.95,me.y));
+  db.ref("players/"+me.id).update({x:me.x,y:me.y});
 }
 
-function loop() {
-	ctx.clearRect(0,0,W,H);
-	draw(me);
-	requestAnimationFrame(loop);
-}
-
-function draw(p) {
-	const x = W * p.x;
-	const y = H * p.y;
-
-	ctx.fillStyle = p.color;
-	ctx.beginPath();
-	ctx.arc(x, y, 16, 0, Math.PI*2);
-	ctx.fill();
-
-	ctx.fillStyle = "#fff";
-	ctx.font = "14px sans-serif";
-	ctx.textAlign = "center";
-	ctx.fillText(p.name, x, y - 20);
+function loop(){
+  ctx.clearRect(0,0,W,H);
+  for(const id in players){
+    const p=players[id];
+    ctx.fillStyle=p.color;
+    ctx.beginPath();
+    ctx.arc(W*p.x,H*p.y,14,0,Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle="#fff";
+    ctx.textAlign="center";
+    ctx.fillText(p.name,W*p.x,H*p.y-18);
+  }
+  requestAnimationFrame(loop);
 }
 </script>
 
