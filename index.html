@@ -3,190 +3,151 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>TAP RUSH</title>
+<title>DOT ARENA</title>
 
-<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
 <style>
-body {
+html, body {
     margin: 0;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-    background: linear-gradient(180deg, #0f2027, #203a43, #2c5364);
-    color: #fff;
-    height: 100vh;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    overscroll-behavior: none;
-}
-
-#app {
-    width: 100%;
-    max-width: 420px;
+    padding: 0;
     height: 100%;
-    display: flex;
-    flex-direction: column;
-    padding: 16px;
-    box-sizing: border-box;
-}
-
-h1 {
-    text-align: center;
-    margin: 8px 0 16px;
-    font-size: 28px;
+    background: #0b1020;
+    color: white;
+    font-family: system-ui, sans-serif;
+    overflow: hidden;
 }
 
 #login {
+    position: absolute;
+    inset: 0;
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    margin-top: 40px;
+    justify-content: center;
+    align-items: center;
+    gap: 14px;
 }
 
-input {
+input, button {
+    font-size: 20px;
     padding: 14px;
-    font-size: 18px;
-    border-radius: 12px;
+    border-radius: 14px;
     border: none;
-    outline: none;
 }
 
 button {
-    padding: 16px;
-    font-size: 22px;
-    border-radius: 16px;
-    border: none;
-    background: #00e0ff;
-    color: #00323a;
+    background: #00ffd0;
     font-weight: 700;
 }
 
-button:active {
-    transform: scale(0.97);
-}
-
-#game {
+canvas {
     display: none;
-    flex: 1;
-    flex-direction: column;
-}
-
-#tapBtn {
-    flex: 1;
-    margin: 16px 0;
-    font-size: 32px;
-    background: #00ff9c;
-    color: #003a23;
-}
-
-#players {
-    background: rgba(255,255,255,0.08);
-    border-radius: 12px;
-    padding: 12px;
-    max-height: 40vh;
-    overflow-y: auto;
-}
-
-.player {
-    display: flex;
-    justify-content: space-between;
-    padding: 6px 0;
-    font-size: 18px;
-}
-
-.leader {
-    color: #00ff9c;
-    font-weight: 700;
 }
 </style>
 </head>
 <body>
 
-<div id="app">
-    <h1>⚡ TAP RUSH</h1>
-
-    <div id="login">
-        <input id="nickname" placeholder="Введите никнейм">
-        <button id="startBtn">Войти в игру</button>
-    </div>
-
-    <div id="game">
-        <button id="tapBtn">TAP!</button>
-        <div id="players"></div>
-    </div>
+<div id="login">
+    <h1>🟢 DOT ARENA</h1>
+    <input id="nick" placeholder="Никнейм">
+    <button id="enter">Войти</button>
 </div>
 
-<script>
-const firebaseConfig = {
-  apiKey: "AIzaSyCnJQPTInx6HF6KarGXBYGQslKanlxLl7M",
-  authDomain: "arrowgame-94ba7.firebaseapp.com",
-  projectId: "arrowgame-94ba7",
-  storageBucket: "arrowgame-94ba7.firebasestorage.app",
-  messagingSenderId: "757768926376",
-  appId: "1:757768926376:web:d4e3fa371a0b0f02a67e9d",
-  databaseURL: "https://arrowgame-94ba7-default-rtdb.firebaseio.com/"
-};
+<canvas id="game"></canvas>
 
-firebase.initializeApp(firebaseConfig);
+<script>
+// 🔥 Firebase (ТВОЙ)
+firebase.initializeApp({
+  apiKey: "AIzaSyAViU2ttzIWAmmxB6tSwJ0thCrCTba7Cyk",
+  authDomain: "best-ec082.firebaseapp.com",
+  projectId: "best-ec082",
+  storageBucket: "best-ec082.firebasestorage.app",
+  messagingSenderId: "782817955265",
+  appId: "1:782817955265:web:0265b75bb0bfb4884bb340",
+  databaseURL: "https://best-ec082-default-rtdb.firebaseio.com/"
+});
 
 const auth = firebase.auth();
 const db = firebase.database();
 
-const loginEl = document.getElementById("login");
-const gameEl = document.getElementById("game");
-const playersEl = document.getElementById("players");
-const tapBtn = document.getElementById("tapBtn");
+/* UI */
+const login = document.getElementById("login");
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
 
-let uid = null;
-let myScore = 0;
-let myRef = null;
+let uid;
+let me;
+let players = {};
 
-document.getElementById("startBtn").onclick = async () => {
-    const nick = document.getElementById("nickname").value.trim();
-    if (!nick) return alert("Введите никнейм");
+/* Resize */
+function resize() {
+    canvas.width = innerWidth;
+    canvas.height = innerHeight;
+}
+window.addEventListener("resize", resize);
 
-    const result = await auth.signInAnonymously();
-    uid = result.user.uid;
+/* Login */
+document.getElementById("enter").onclick = async () => {
+    const nickname = nick.value.trim();
+    if (!nickname) return alert("Введите ник");
 
-    myRef = db.ref("players/" + uid);
-    await myRef.set({
-        nickname: nick,
+    const res = await auth.signInAnonymously();
+    uid = res.user.uid;
+
+    me = {
+        nickname,
+        x: innerWidth / 2,
+        y: innerHeight / 2,
         score: 0,
-        lastTap: Date.now()
+        color: `hsl(${Math.random()*360},80%,60%)`
+    };
+
+    const ref = db.ref("players/" + uid);
+    ref.set(me);
+    ref.onDisconnect().remove();
+
+    login.style.display = "none";
+    canvas.style.display = "block";
+    resize();
+
+    canvas.addEventListener("touchmove", e => {
+        const t = e.touches[0];
+        me.x = t.clientX;
+        me.y = t.clientY;
+        me.score += 0.03;
+        ref.update({ x: me.x, y: me.y, score: me.score });
     });
 
-    myRef.onDisconnect().remove();
-
-    loginEl.style.display = "none";
-    gameEl.style.display = "flex";
+    loop();
 };
 
-tapBtn.onclick = () => {
-    myScore++;
-    myRef.update({
-        score: myScore,
-        lastTap: Date.now()
-    });
-};
-
+/* Sync */
 db.ref("players").on("value", snap => {
-    const data = snap.val() || {};
-    playersEl.innerHTML = "";
-
-    const list = Object.values(data)
-        .sort((a,b) => b.score - a.score);
-
-    list.forEach((p, i) => {
-        const div = document.createElement("div");
-        div.className = "player" + (i === 0 ? " leader" : "");
-        div.innerHTML = `<span>${p.nickname}</span><span>${p.score}</span>`;
-        playersEl.appendChild(div);
-    });
+    players = snap.val() || {};
 });
-</script>
 
+/* Render loop */
+function loop() {
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    for (const id in players) {
+        const p = players[id];
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 22, 0, Math.PI*2);
+        ctx.fillStyle = p.color;
+        ctx.fill();
+
+        ctx.fillStyle = "#fff";
+        ctx.font = "14px system-ui";
+        ctx.textAlign = "center";
+        ctx.fillText(p.nickname, p.x, p.y - 30);
+        ctx.fillText(Math.floor(p.score), p.x, p.y + 42);
+    }
+
+    requestAnimationFrame(loop);
+}
+</script>
 </body>
 </html>
