@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Tap Float — Online</title>
+<title>Tap Float — Joystick Online</title>
 
 <style>
 html, body {
@@ -46,6 +46,29 @@ canvas {
 	display: none;
 }
 
+/* JOYSTICK */
+#joystick {
+	position: absolute;
+	bottom: 40px;
+	left: 40px;
+	width: 120px;
+	height: 120px;
+	border-radius: 50%;
+	background: rgba(255,255,255,0.08);
+	display: none;
+}
+
+#stick {
+	position: absolute;
+	left: 50%;
+	top: 50%;
+	width: 50px;
+	height: 50px;
+	border-radius: 50%;
+	background: rgba(255,255,255,0.6);
+	transform: translate(-50%, -50%);
+}
+
 #info {
 	position: absolute;
 	top: 10px;
@@ -67,18 +90,24 @@ canvas {
 <div id="info"></div>
 <canvas id="game"></canvas>
 
+<div id="joystick">
+	<div id="stick"></div>
+</div>
+
 <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 
 <script>
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 const info = document.getElementById("info");
+const joystick = document.getElementById("joystick");
+const stick = document.getElementById("stick");
 
 let W, H;
-let up = false;
 let me;
 let peers = {};
 let connections = [];
+let vx = 0, vy = 0;
 
 function resize() {
 	W = canvas.width = window.innerWidth;
@@ -92,11 +121,13 @@ function start() {
 
 	document.getElementById("login").style.display = "none";
 	canvas.style.display = "block";
+	joystick.style.display = "block";
 	resize();
 
 	me = {
 		id: null,
 		name,
+		x: 0.5,
 		y: 0.5,
 		color: `hsl(${Math.random()*360},70%,60%)`
 	};
@@ -105,71 +136,76 @@ function start() {
 
 	peer.on("open", id => {
 		me.id = id;
-		info.innerHTML = "Онлайн ID: " + id;
-
-		// подключаемся ко всем известным
-		Object.values(peers).forEach(p => connect(peer, p.id));
+		info.innerHTML = "Online";
 	});
 
-	peer.on("connection", conn => {
-		setup(conn);
-	});
+	peer.on("connection", conn => setup(conn));
 
 	setInterval(() => {
-		me.y += up ? -0.01 : 0.01;
-		me.y = Math.max(0.05, Math.min(0.95, me.y));
-		broadcast();
-	}, 100);
+		me.x += vx;
+		me.y += vy;
 
-	control();
+		me.x = Math.max(0.05, Math.min(0.95, me.x));
+		me.y = Math.max(0.05, Math.min(0.95, me.y));
+
+		broadcast();
+	}, 50);
+
+	setupJoystick();
 	loop();
 }
 
-function connect(peer, id) {
-	if (id === me.id) return;
-	const conn = peer.connect(id);
-	setup(conn);
-}
-
 function setup(conn) {
-	conn.on("open", () => {
-		connections.push(conn);
-	});
-	conn.on("data", data => {
-		peers[data.id] = data;
-	});
+	conn.on("open", () => connections.push(conn));
+	conn.on("data", data => peers[data.id] = data);
 }
 
 function broadcast() {
-	connections.forEach(c => {
-		c.send(me);
-	});
+	connections.forEach(c => c.send(me));
 }
 
-function control() {
-	const down = () => up = true;
-	const upf = () => up = false;
+function setupJoystick() {
+	const rect = joystick.getBoundingClientRect();
+	const center = { x: rect.width/2, y: rect.height/2 };
+	const max = 40;
 
-	canvas.addEventListener("touchstart", down);
-	canvas.addEventListener("touchend", upf);
-	canvas.addEventListener("mousedown", down);
-	canvas.addEventListener("mouseup", upf);
+	const move = e => {
+		const t = e.touches[0];
+		const dx = t.clientX - rect.left - center.x;
+		const dy = t.clientY - rect.top - center.y;
+		const dist = Math.min(Math.hypot(dx,dy), max);
+		const angle = Math.atan2(dy,dx);
+
+		const x = Math.cos(angle)*dist;
+		const y = Math.sin(angle)*dist;
+
+		stick.style.transform = `translate(${x}px, ${y}px) translate(-50%,-50%)`;
+
+		vx = x / max * 0.01;
+		vy = y / max * 0.01;
+	};
+
+	const end = () => {
+		stick.style.transform = "translate(-50%,-50%)";
+		vx = vy = 0;
+	};
+
+	joystick.addEventListener("touchstart", move);
+	joystick.addEventListener("touchmove", move);
+	joystick.addEventListener("touchend", end);
 }
 
 function loop() {
 	ctx.clearRect(0,0,W,H);
 
 	draw(me);
-
-	for (let id in peers) {
-		draw(peers[id]);
-	}
+	for (let id in peers) draw(peers[id]);
 
 	requestAnimationFrame(loop);
 }
 
 function draw(p) {
-	const x = W / 2;
+	const x = W * p.x;
 	const y = H * p.y;
 
 	ctx.fillStyle = p.color;
