@@ -1,64 +1,80 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>DOT ARENA</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+<title>DOT ARENA CAM</title>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
 <style>
-html, body {
-    margin: 0;
-    padding: 0;
-    height: 100%;
-    background: #0b1020;
-    color: white;
-    font-family: system-ui, sans-serif;
-    overflow: hidden;
+body {
+  margin: 0;
+  background: #0b1020;
+  color: white;
+  font-family: system-ui;
 }
 
 #login {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    gap: 14px;
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 14px;
 }
 
 input, button {
-    font-size: 20px;
-    padding: 14px;
-    border-radius: 14px;
-    border: none;
+  font-size: 18px;
+  padding: 12px;
+  border-radius: 12px;
+  border: none;
 }
 
 button {
-    background: #00ffd0;
-    font-weight: 700;
+  background: #00ffd0;
+  font-weight: 700;
 }
 
-canvas {
-    display: none;
+#arena {
+  display: none;
+  padding: 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 2cm);
+  gap: 8px;
+}
+
+.video-box {
+  width: 2cm;
+  height: 2cm;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #000;
+  border: 2px solid #00ffd0;
+}
+
+video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 </style>
 </head>
 <body>
 
 <div id="login">
-    <h1>🟢 DOT ARENA</h1>
-    <input id="nick" placeholder="Никнейм">
-    <button id="enter">Войти</button>
+  <h2>📷 DOT ARENA CAM</h2>
+  <input id="nick" placeholder="Никнейм" />
+  <button id="enter">Войти</button>
 </div>
 
-<canvas id="game"></canvas>
+<div id="arena"></div>
 
 <script>
-// 🔥 Firebase (ТВОЙ)
+/* Firebase */
 firebase.initializeApp({
   apiKey: "AIzaSyAViU2ttzIWAmmxB6tSwJ0thCrCTba7Cyk",
   authDomain: "best-ec082.firebaseapp.com",
@@ -72,81 +88,110 @@ firebase.initializeApp({
 const auth = firebase.auth();
 const db = firebase.database();
 
-/* UI */
 const login = document.getElementById("login");
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
+const arena = document.getElementById("arena");
 
 let uid;
-let me;
-let players = {};
+let localStream;
+const peers = {};
 
-/* Resize */
-function resize() {
-    canvas.width = innerWidth;
-    canvas.height = innerHeight;
-}
-window.addEventListener("resize", resize);
+const rtcConfig = {
+  iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+};
 
 /* Login */
 document.getElementById("enter").onclick = async () => {
-    const nickname = nick.value.trim();
-    if (!nickname) return alert("Введите ник");
+  const nickname = document.getElementById("nick").value.trim();
+  if (!nickname) return alert("Введите ник");
 
-    const res = await auth.signInAnonymously();
-    uid = res.user.uid;
+  const res = await auth.signInAnonymously();
+  uid = res.user.uid;
 
-    me = {
-        nickname,
-        x: innerWidth / 2,
-        y: innerHeight / 2,
-        score: 0,
-        color: `hsl(${Math.random()*360},80%,60%)`
-    };
+  await db.ref("players/" + uid).set({ nickname });
+  db.ref("players/" + uid).onDisconnect().remove();
 
-    const ref = db.ref("players/" + uid);
-    ref.set(me);
-    ref.onDisconnect().remove();
+  login.style.display = "none";
+  arena.style.display = "grid";
 
-    login.style.display = "none";
-    canvas.style.display = "block";
-    resize();
+  localStream = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode: "user" },
+    audio: false
+  });
 
-    canvas.addEventListener("touchmove", e => {
-        const t = e.touches[0];
-        me.x = t.clientX;
-        me.y = t.clientY;
-        me.score += 0.03;
-        ref.update({ x: me.x, y: me.y, score: me.score });
-    });
+  addVideo(uid, localStream, true);
 
-    loop();
+  db.ref("players").on("child_added", snap => {
+    const id = snap.key;
+    if (id !== uid) createPeer(id, true);
+  });
+
+  db.ref("signals/" + uid).on("child_added", async snap => {
+    const { from, data } = snap.val();
+    if (!peers[from]) createPeer(from, false);
+    await peers[from].signal(data);
+  });
 };
 
-/* Sync */
-db.ref("players").on("value", snap => {
-    players = snap.val() || {};
-});
+/* Video UI */
+function addVideo(id, stream, muted = false) {
+  if (document.getElementById("v_" + id)) return;
 
-/* Render loop */
-function loop() {
-    ctx.clearRect(0,0,canvas.width,canvas.height);
+  const box = document.createElement("div");
+  box.className = "video-box";
 
-    for (const id in players) {
-        const p = players[id];
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, 22, 0, Math.PI*2);
-        ctx.fillStyle = p.color;
-        ctx.fill();
+  const video = document.createElement("video");
+  video.id = "v_" + id;
+  video.autoplay = true;
+  video.playsInline = true;
+  video.muted = muted;
+  video.srcObject = stream;
 
-        ctx.fillStyle = "#fff";
-        ctx.font = "14px system-ui";
-        ctx.textAlign = "center";
-        ctx.fillText(p.nickname, p.x, p.y - 30);
-        ctx.fillText(Math.floor(p.score), p.x, p.y + 42);
+  box.appendChild(video);
+  arena.appendChild(box);
+}
+
+/* WebRTC */
+function createPeer(otherId, initiator) {
+  const pc = new RTCPeerConnection(rtcConfig);
+  peers[otherId] = pc;
+
+  localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+
+  pc.ontrack = e => addVideo(otherId, e.streams[0]);
+
+  pc.onicecandidate = e => {
+    if (e.candidate) {
+      db.ref("signals/" + otherId).push({
+        from: uid,
+        data: { ice: e.candidate }
+      });
     }
+  };
 
-    requestAnimationFrame(loop);
+  pc.signal = async data => {
+    if (data.sdp) {
+      await pc.setRemoteDescription(data.sdp);
+      if (data.sdp.type === "offer") {
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        db.ref("signals/" + otherId).push({
+          from: uid,
+          data: { sdp: pc.localDescription }
+        });
+      }
+    }
+    if (data.ice) await pc.addIceCandidate(data.ice);
+  };
+
+  if (initiator) {
+    pc.createOffer().then(offer => {
+      pc.setLocalDescription(offer);
+      db.ref("signals/" + otherId).push({
+        from: uid,
+        data: { sdp: offer }
+      });
+    });
+  }
 }
 </script>
 </body>
