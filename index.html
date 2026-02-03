@@ -2,10 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-
-<meta name="viewport"
-content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Arrow World</title>
 
 <style>
@@ -55,10 +52,9 @@ canvas{
   bottom:28px;
   left:50%;
   transform:translateX(-50%);
-  display:grid;
+  display:none;
   grid-template:repeat(3,90px)/repeat(3,90px);
   gap:12px;
-  display:none;
 }
 
 .ctrl{
@@ -93,9 +89,8 @@ canvas{
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
 <script>
-// 🔒 ЖЁСТКАЯ БЛОКИРОВКА ЗУМА
+// 🔒 блокируем только зум
 document.addEventListener('gesturestart',e=>e.preventDefault());
-document.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
 
 // 🔥 FIREBASE
 firebase.initializeApp({
@@ -116,6 +111,7 @@ let W,H;
 let me=null;
 let players={};
 let move={up:0,down:0,left:0,right:0};
+let lastSync=0;
 
 function resize(){
   W=innerWidth;
@@ -128,17 +124,16 @@ function resize(){
 }
 addEventListener("resize",resize);
 
-// 🔑 ЖДЁМ АВТОРИЗАЦИЮ
 firebase.auth().onAuthStateChanged(user=>{
   if(!user)return;
 
-  document.getElementById("play").onclick=()=>{
-    const name=document.getElementById("name").value.trim();
+  play.onclick=()=>{
+    const name=nameInput.value.trim();
     if(!name)return;
 
-    document.getElementById("login").style.display="none";
+    login.style.display="none";
     canvas.style.display="block";
-    document.getElementById("controls").style.display="grid";
+    controls.style.display="grid";
     resize();
 
     me={
@@ -152,40 +147,47 @@ firebase.auth().onAuthStateChanged(user=>{
     const ref=db.ref("players/"+me.id);
     ref.set(me);
     ref.onDisconnect().remove();
-    addEventListener("beforeunload",()=>ref.remove());
 
-    db.ref("players").on("value",s=>{
-      players=s.val()||{};
-    });
+    db.ref("players").on("child_added",s=>players[s.key]=s.val());
+    db.ref("players").on("child_changed",s=>players[s.key]=s.val());
+    db.ref("players").on("child_removed",s=>delete players[s.key]);
 
-    setInterval(update,50);
-    loop();
+    requestAnimationFrame(loop);
   };
 });
 
-// 🎮 КНОПКИ
+// 🎮 управление
 document.querySelectorAll(".ctrl").forEach(b=>{
   const d=b.dataset.dir;
-  b.ontouchstart=b.onmousedown=()=>move[d]=1;
-  b.ontouchend=b.onmouseup=()=>move[d]=0;
+  b.addEventListener("touchstart",()=>move[d]=1);
+  b.addEventListener("touchend",()=>move[d]=0);
+  b.addEventListener("mousedown",()=>move[d]=1);
+  b.addEventListener("mouseup",()=>move[d]=0);
 });
 
-// 🧠 ЛОГИКА
-function update(){
-  if(!me)return;
-  const s=0.018;
-  if(move.up)me.y-=s;
-  if(move.down)me.y+=s;
-  if(move.left)me.x-=s;
-  if(move.right)me.x+=s;
-  me.x=Math.max(.05,Math.min(.95,me.x));
-  me.y=Math.max(.05,Math.min(.95,me.y));
-  db.ref("players/"+me.id).update({x:me.x,y:me.y});
-}
+// сброс при потере фокуса
+addEventListener("touchend",()=>move={up:0,down:0,left:0,right:0});
+addEventListener("mouseup",()=>move={up:0,down:0,left:0,right:0});
 
-// 🎨 РЕНДЕР
-function loop(){
+// 🧠 + 🎨
+function loop(t){
   ctx.clearRect(0,0,W,H);
+
+  if(me){
+    const s=0.018;
+    if(move.up)me.y-=s;
+    if(move.down)me.y+=s;
+    if(move.left)me.x-=s;
+    if(move.right)me.x+=s;
+
+    me.x=Math.max(.05,Math.min(.95,me.x));
+    me.y=Math.max(.05,Math.min(.95,me.y));
+
+    if(t-lastSync>100){
+      db.ref("players/"+me.id).update({x:me.x,y:me.y});
+      lastSync=t;
+    }
+  }
 
   ctx.textAlign="center";
   ctx.textBaseline="middle";
@@ -193,7 +195,7 @@ function loop(){
 
   for(const id in players){
     const p=players[id];
-    if(!p||!p.name)continue;
+    if(!p)continue;
 
     const x=W*p.x;
     const y=H*p.y;
@@ -213,6 +215,5 @@ function loop(){
   requestAnimationFrame(loop);
 }
 </script>
-
 </body>
 </html>
