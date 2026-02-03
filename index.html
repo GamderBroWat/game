@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
 <title>Arrow World</title>
 
 <style>
@@ -89,10 +90,18 @@ canvas{
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
 <script>
-// 🔒 блокируем только зум
-document.addEventListener('gesturestart',e=>e.preventDefault());
+// ───────────────── DOM ─────────────────
+const playBtn = document.getElementById("play");
+const nameInput = document.getElementById("name");
+const login = document.getElementById("login");
+const controls = document.getElementById("controls");
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
 
-// 🔥 FIREBASE
+// ───────────── блокируем зум ─────────────
+document.addEventListener("gesturestart", e => e.preventDefault());
+
+// ───────────────── FIREBASE ──────────────
 firebase.initializeApp({
   apiKey:"AIzaSyCnJQPTInx6HF6KarGXBYGQslKanlxLl7M",
   authDomain:"arrowgame-94ba7.firebaseapp.com",
@@ -100,120 +109,120 @@ firebase.initializeApp({
   projectId:"arrowgame-94ba7"
 });
 
-const db=firebase.database();
+const db = firebase.database();
 firebase.auth().signInAnonymously();
 
-const canvas=document.getElementById("game");
-const ctx=canvas.getContext("2d");
-
-let DPR=window.devicePixelRatio||1;
-let W,H;
-let me=null;
-let players={};
-let move={up:0,down:0,left:0,right:0};
-let lastSync=0;
+// ───────────────── GAME ─────────────────
+let DPR = window.devicePixelRatio || 1;
+let W = 0, H = 0;
+let me = null;
+let players = {};
+let move = {up:0,down:0,left:0,right:0};
+let lastSync = 0;
 
 function resize(){
-  W=innerWidth;
-  H=innerHeight;
-  canvas.width=W*DPR;
-  canvas.height=H*DPR;
-  canvas.style.width=W+"px";
-  canvas.style.height=H+"px";
+  W = innerWidth;
+  H = innerHeight;
+  canvas.width = W * DPR;
+  canvas.height = H * DPR;
+  canvas.style.width = W + "px";
+  canvas.style.height = H + "px";
   ctx.setTransform(DPR,0,0,DPR,0,0);
 }
-addEventListener("resize",resize);
+addEventListener("resize", resize);
 
+// ───────────── AUTH READY ─────────────
 firebase.auth().onAuthStateChanged(user=>{
-  if(!user)return;
+  if(!user) return;
 
-  play.onclick=()=>{
-    const name=nameInput.value.trim();
-    if(!name)return;
+  playBtn.onclick = () => {
+    const name = nameInput.value.trim();
+    if(!name) return;
 
-    login.style.display="none";
-    canvas.style.display="block";
-    controls.style.display="grid";
+    login.style.display = "none";
+    canvas.style.display = "block";
+    controls.style.display = "grid";
     resize();
 
-    me={
-      id:user.uid,
+    me = {
+      id: user.uid,
       name,
-      x:0.5,
-      y:0.5,
-      color:`hsl(${Math.random()*360},70%,60%)`
+      x: 0.5,
+      y: 0.5,
+      color: `hsl(${Math.random()*360},70%,60%)`
     };
 
-    const ref=db.ref("players/"+me.id);
+    const ref = db.ref("players/" + me.id);
     ref.set(me);
     ref.onDisconnect().remove();
 
-    db.ref("players").on("child_added",s=>players[s.key]=s.val());
-    db.ref("players").on("child_changed",s=>players[s.key]=s.val());
-    db.ref("players").on("child_removed",s=>delete players[s.key]);
+    db.ref("players").on("child_added", s => players[s.key] = s.val());
+    db.ref("players").on("child_changed", s => players[s.key] = s.val());
+    db.ref("players").on("child_removed", s => delete players[s.key]);
 
     requestAnimationFrame(loop);
   };
 });
 
-// 🎮 управление
-document.querySelectorAll(".ctrl").forEach(b=>{
-  const d=b.dataset.dir;
-  b.addEventListener("touchstart",()=>move[d]=1);
-  b.addEventListener("touchend",()=>move[d]=0);
-  b.addEventListener("mousedown",()=>move[d]=1);
-  b.addEventListener("mouseup",()=>move[d]=0);
+// ───────────── CONTROLS ─────────────
+document.querySelectorAll(".ctrl").forEach(btn=>{
+  const d = btn.dataset.dir;
+
+  btn.addEventListener("touchstart", ()=>move[d]=1);
+  btn.addEventListener("touchend", ()=>move[d]=0);
+  btn.addEventListener("mousedown", ()=>move[d]=1);
+  btn.addEventListener("mouseup", ()=>move[d]=0);
 });
 
-// сброс при потере фокуса
-addEventListener("touchend",()=>move={up:0,down:0,left:0,right:0});
-addEventListener("mouseup",()=>move={up:0,down:0,left:0,right:0});
+addEventListener("touchend", ()=>move={up:0,down:0,left:0,right:0});
+addEventListener("mouseup", ()=>move={up:0,down:0,left:0,right:0});
 
-// 🧠 + 🎨
+// ───────────── LOOP ─────────────
 function loop(t){
   ctx.clearRect(0,0,W,H);
 
   if(me){
-    const s=0.018;
-    if(move.up)me.y-=s;
-    if(move.down)me.y+=s;
-    if(move.left)me.x-=s;
-    if(move.right)me.x+=s;
+    const s = 0.018;
+    if(move.up) me.y -= s;
+    if(move.down) me.y += s;
+    if(move.left) me.x -= s;
+    if(move.right) me.x += s;
 
-    me.x=Math.max(.05,Math.min(.95,me.x));
-    me.y=Math.max(.05,Math.min(.95,me.y));
+    me.x = Math.max(0.05, Math.min(0.95, me.x));
+    me.y = Math.max(0.05, Math.min(0.95, me.y));
 
-    if(t-lastSync>100){
-      db.ref("players/"+me.id).update({x:me.x,y:me.y});
-      lastSync=t;
+    if(t - lastSync > 100){
+      db.ref("players/" + me.id).update({x:me.x, y:me.y});
+      lastSync = t;
     }
   }
 
-  ctx.textAlign="center";
-  ctx.textBaseline="middle";
-  ctx.font="20px system-ui";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = "20px system-ui";
 
   for(const id in players){
-    const p=players[id];
-    if(!p)continue;
+    const p = players[id];
+    if(!p) continue;
 
-    const x=W*p.x;
-    const y=H*p.y;
+    const x = W * p.x;
+    const y = H * p.y;
 
-    ctx.fillStyle=p.color;
+    ctx.fillStyle = p.color;
     ctx.beginPath();
     ctx.arc(x,y,28,0,Math.PI*2);
     ctx.fill();
 
-    ctx.lineWidth=4;
-    ctx.strokeStyle="#000";
-    ctx.strokeText(p.name,x,y-44);
-    ctx.fillStyle="#fff";
-    ctx.fillText(p.name,x,y-44);
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = "#000";
+    ctx.strokeText(p.name, x, y-44);
+    ctx.fillStyle = "#fff";
+    ctx.fillText(p.name, x, y-44);
   }
 
   requestAnimationFrame(loop);
 }
 </script>
+
 </body>
 </html>
