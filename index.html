@@ -39,7 +39,7 @@ input,button{
 }
 
 button{
-  background:#ef4444; /* 🔴 КРАСНАЯ */
+  background:#ef4444;
   color:white;
   font-weight:700;
 }
@@ -90,7 +90,6 @@ canvas{
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
 <script>
-// ───────── DOM ─────────
 const playBtn   = document.getElementById("play");
 const nameInput= document.getElementById("name");
 const login    = document.getElementById("login");
@@ -98,7 +97,6 @@ const controls = document.getElementById("controls");
 const canvas   = document.getElementById("game");
 const ctx      = canvas.getContext("2d");
 
-// ───── блокируем зум ─────
 document.addEventListener("gesturestart", e => e.preventDefault());
 
 // ───────── FIREBASE ─────────
@@ -110,10 +108,6 @@ firebase.initializeApp({
 });
 
 const db = firebase.database();
-firebase.auth().signInAnonymously();
-
-let currentUser = null;
-firebase.auth().onAuthStateChanged(u => currentUser = u);
 
 // ───────── GAME ─────────
 let DPR = devicePixelRatio || 1;
@@ -135,37 +129,45 @@ function resize(){
 addEventListener("resize", resize);
 
 // 🔥 КНОПКА РАБОТАЕТ ВСЕГДА
-playBtn.onclick = () => {
+playBtn.onclick = async () => {
   const name = nameInput.value.trim();
   if(!name) return;
 
-  if(!currentUser){
-    alert("Подключение к серверу… попробуй ещё раз через секунду");
-    return;
+  playBtn.disabled = true;
+  playBtn.textContent = "Подключение…";
+
+  try{
+    const cred = await firebase.auth().signInAnonymously();
+    const user = cred.user;
+
+    login.style.display="none";
+    canvas.style.display="block";
+    controls.style.display="grid";
+    resize();
+
+    me = {
+      id: user.uid,
+      name,
+      x:0.5,
+      y:0.5,
+      color:`hsl(${Math.random()*360},70%,60%)`
+    };
+
+    const ref = db.ref("players/"+me.id);
+    ref.set(me);
+    ref.onDisconnect().remove();
+
+    db.ref("players").on("child_added", s => players[s.key]=s.val());
+    db.ref("players").on("child_changed", s => players[s.key]=s.val());
+    db.ref("players").on("child_removed", s => delete players[s.key]);
+
+    requestAnimationFrame(loop);
+
+  }catch(err){
+    alert("Ошибка подключения");
+    playBtn.disabled = false;
+    playBtn.textContent = "Играть";
   }
-
-  login.style.display="none";
-  canvas.style.display="block";
-  controls.style.display="grid";
-  resize();
-
-  me = {
-    id: currentUser.uid,
-    name,
-    x:0.5,
-    y:0.5,
-    color:`hsl(${Math.random()*360},70%,60%)`
-  };
-
-  const ref = db.ref("players/"+me.id);
-  ref.set(me);
-  ref.onDisconnect().remove();
-
-  db.ref("players").on("child_added", s => players[s.key]=s.val());
-  db.ref("players").on("child_changed", s => players[s.key]=s.val());
-  db.ref("players").on("child_removed", s => delete players[s.key]);
-
-  requestAnimationFrame(loop);
 };
 
 // ───────── CONTROLS ─────────
