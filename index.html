@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Arrow World — Online</title>
+<title>Arrow World</title>
 
 <style>
 html, body {
@@ -57,25 +57,13 @@ canvas {
 }
 
 .ctrl {
-	background: rgba(255,255,255,0.2);
+	background: rgba(255,255,255,0.25);
 	border-radius: 12px;
 	font-size: 26px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	user-select: none;
-}
-
-.ctrl:active {
-	background: rgba(255,255,255,0.4);
-}
-
-#info {
-	position: absolute;
-	top: 10px;
-	left: 10px;
-	font-size: 14px;
-	opacity: 0.8;
 }
 </style>
 </head>
@@ -88,43 +76,21 @@ canvas {
 	<button onclick="start()">Играть</button>
 </div>
 
-<div id="info"></div>
 <canvas id="game"></canvas>
 
 <div id="controls">
-	<div></div>
-	<div class="ctrl" data-dir="up">⬆️</div>
-	<div></div>
-	<div class="ctrl" data-dir="left">⬅️</div>
-	<div></div>
-	<div class="ctrl" data-dir="right">➡️</div>
-	<div></div>
-	<div class="ctrl" data-dir="down">⬇️</div>
-	<div></div>
+	<div></div><div class="ctrl" data="up">⬆️</div><div></div>
+	<div class="ctrl" data="left">⬅️</div><div></div><div class="ctrl" data="right">➡️</div>
+	<div></div><div class="ctrl" data="down">⬇️</div><div></div>
 </div>
 
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-
 <script>
-firebase.initializeApp({
-	apiKey: "demo",
-	authDomain: "demo.firebaseapp.com",
-	databaseURL: "https://fir-demo-project.firebaseio.com",
-	projectId: "demo"
-});
-
-const db = firebase.database();
-
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
-const info = document.getElementById("info");
 const controls = document.getElementById("controls");
 
 let W, H;
 let me = null;
-let players = {};
 let move = { up:false, down:false, left:false, right:false };
 
 function resize() {
@@ -142,68 +108,43 @@ function start() {
 	controls.style.display = "grid";
 	resize();
 
-	firebase.auth().signInAnonymously().then(() => {
-		const id = Math.random().toString(36).slice(2);
+	// 🔥 СОЗДАЁМ ИГРОКА СРАЗУ
+	me = {
+		name,
+		x: 0.5,
+		y: 0.5,
+		color: `hsl(${Math.random()*360},70%,60%)`
+	};
 
-		me = {
-			id,
-			name,
-			x: 0.5,
-			y: 0.5,
-			color: `hsl(${Math.random()*360},70%,60%)`
-		};
-
-		const ref = db.ref("players/" + id);
-		ref.set(me);
-		ref.onDisconnect().remove();
-
-		db.ref("players").on("value", snap => {
-			players = snap.val() || {};
-			info.innerHTML = "Онлайн: " + Object.keys(players).length;
-		});
-
-		setInterval(update, 50);
-		setupControls();
-		loop();
-	});
+	setupControls();
+	setInterval(update, 50);
+	loop();
 }
 
 function setupControls() {
 	document.querySelectorAll(".ctrl").forEach(btn => {
-		const dir = btn.dataset.dir;
-		const on = e => { e.preventDefault(); move[dir] = true; };
-		const off = e => { e.preventDefault(); move[dir] = false; };
-
-		btn.addEventListener("touchstart", on);
-		btn.addEventListener("touchend", off);
-		btn.addEventListener("mousedown", on);
-		btn.addEventListener("mouseup", off);
+		const d = btn.getAttribute("data");
+		btn.ontouchstart = () => move[d] = true;
+		btn.ontouchend = () => move[d] = false;
+		btn.onmousedown = () => move[d] = true;
+		btn.onmouseup = () => move[d] = false;
 	});
 }
 
 function update() {
-	const speed = 0.01;
-	if (move.up) me.y -= speed;
-	if (move.down) me.y += speed;
-	if (move.left) me.x -= speed;
-	if (move.right) me.x += speed;
+	const s = 0.01;
+	if (move.up) me.y -= s;
+	if (move.down) me.y += s;
+	if (move.left) me.x -= s;
+	if (move.right) me.x += s;
 
 	me.x = Math.max(0.05, Math.min(0.95, me.x));
 	me.y = Math.max(0.05, Math.min(0.95, me.y));
-
-	db.ref("players/" + me.id).update({ x: me.x, y: me.y });
 }
 
 function loop() {
 	ctx.clearRect(0,0,W,H);
-
-	// ВСЕГДА рисуем себя
-	if (me) draw(me);
-
-	for (let id in players) {
-		if (id !== me?.id) draw(players[id]);
-	}
-
+	draw(me);
 	requestAnimationFrame(loop);
 }
 
@@ -213,13 +154,13 @@ function draw(p) {
 
 	ctx.fillStyle = p.color;
 	ctx.beginPath();
-	ctx.arc(x, y, 14, 0, Math.PI*2);
+	ctx.arc(x, y, 16, 0, Math.PI*2);
 	ctx.fill();
 
 	ctx.fillStyle = "#fff";
-	ctx.font = "12px sans-serif";
+	ctx.font = "14px sans-serif";
 	ctx.textAlign = "center";
-	ctx.fillText(p.name, x, y - 18);
+	ctx.fillText(p.name, x, y - 20);
 }
 </script>
 
