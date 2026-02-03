@@ -2,8 +2,9 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
+
 <meta name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
 <title>Arrow World</title>
 
@@ -12,16 +13,15 @@
   user-select:none;
   -webkit-user-select:none;
   -webkit-touch-callout:none;
-  touch-action:none;
 }
 
 html,body{
   margin:0;
   height:100%;
-  background:#0f1115;
-  color:#fff;
-  font-family:system-ui,sans-serif;
   overflow:hidden;
+  background:#0f1115;
+  color:white;
+  font-family:system-ui,sans-serif;
 }
 
 #login{
@@ -31,13 +31,13 @@ html,body{
   flex-direction:column;
   justify-content:center;
   align-items:center;
-  gap:12px;
+  gap:14px;
 }
 
 input,button{
-  font-size:20px;
-  padding:12px 16px;
-  border-radius:14px;
+  font-size:22px;
+  padding:14px 18px;
+  border-radius:16px;
   border:none;
 }
 
@@ -52,19 +52,19 @@ canvas{
 
 #controls{
   position:absolute;
-  bottom:24px;
+  bottom:28px;
   left:50%;
   transform:translateX(-50%);
   display:grid;
-  grid-template:repeat(3,80px)/repeat(3,80px);
-  gap:10px;
+  grid-template:repeat(3,90px)/repeat(3,90px);
+  gap:12px;
   display:none;
 }
 
 .ctrl{
-  background:rgba(255,255,255,.18);
-  border-radius:20px;
-  font-size:34px;
+  background:rgba(255,255,255,.2);
+  border-radius:24px;
+  font-size:36px;
   display:flex;
   align-items:center;
   justify-content:center;
@@ -77,15 +77,15 @@ canvas{
 <div id="login">
   <h2>Arrow World</h2>
   <input id="name" placeholder="Ник">
-  <button onclick="start()">Играть</button>
+  <button id="play">Играть</button>
 </div>
 
 <canvas id="game"></canvas>
 
 <div id="controls">
-  <div></div><div class="ctrl" data="up">⬆️</div><div></div>
-  <div class="ctrl" data="left">⬅️</div><div></div><div class="ctrl" data="right">➡️</div>
-  <div></div><div class="ctrl" data="down">⬇️</div><div></div>
+  <div></div><div class="ctrl" data-dir="up">⬆️</div><div></div>
+  <div class="ctrl" data-dir="left">⬅️</div><div></div><div class="ctrl" data-dir="right">➡️</div>
+  <div></div><div class="ctrl" data-dir="down">⬇️</div><div></div>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -93,6 +93,11 @@ canvas{
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
 <script>
+// 🔒 ЖЁСТКАЯ БЛОКИРОВКА ЗУМА
+document.addEventListener('gesturestart',e=>e.preventDefault());
+document.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
+
+// 🔥 FIREBASE
 firebase.initializeApp({
   apiKey:"AIzaSyCnJQPTInx6HF6KarGXBYGQslKanlxLl7M",
   authDomain:"arrowgame-94ba7.firebaseapp.com",
@@ -107,7 +112,10 @@ const canvas=document.getElementById("game");
 const ctx=canvas.getContext("2d");
 
 let DPR=window.devicePixelRatio||1;
-let W,H,me=null,players={},move={up:0,down:0,left:0,right:0};
+let W,H;
+let me=null;
+let players={};
+let move={up:0,down:0,left:0,right:0};
 
 function resize(){
   W=innerWidth;
@@ -120,49 +128,52 @@ function resize(){
 }
 addEventListener("resize",resize);
 
-function start(){
-  const name=document.getElementById("name").value.trim();
-  if(!name)return;
+// 🔑 ЖДЁМ АВТОРИЗАЦИЮ
+firebase.auth().onAuthStateChanged(user=>{
+  if(!user)return;
 
-  document.getElementById("login").style.display="none";
-  canvas.style.display="block";
-  document.getElementById("controls").style.display="grid";
-  resize();
+  document.getElementById("play").onclick=()=>{
+    const name=document.getElementById("name").value.trim();
+    if(!name)return;
 
-  const id=firebase.auth().currentUser.uid;
-  me={
-    id,
-    name,
-    x:0.5,
-    y:0.5,
-    color:`hsl(${Math.random()*360},70%,60%)`
+    document.getElementById("login").style.display="none";
+    canvas.style.display="block";
+    document.getElementById("controls").style.display="grid";
+    resize();
+
+    me={
+      id:user.uid,
+      name,
+      x:0.5,
+      y:0.5,
+      color:`hsl(${Math.random()*360},70%,60%)`
+    };
+
+    const ref=db.ref("players/"+me.id);
+    ref.set(me);
+    ref.onDisconnect().remove();
+    addEventListener("beforeunload",()=>ref.remove());
+
+    db.ref("players").on("value",s=>{
+      players=s.val()||{};
+    });
+
+    setInterval(update,50);
+    loop();
   };
-
-  const ref=db.ref("players/"+id);
-  ref.set(me);
-  ref.onDisconnect().remove();
-
-  addEventListener("beforeunload",()=>ref.remove());
-
-  db.ref("players").on("value",s=>players=s.val()||{});
-
-  document.querySelectorAll(".ctrl").forEach(b=>{
-    const d=b.dataset;
-    b.ontouchstart=b.onmousedown=()=>move[b.dataset.key]=1;
-    b.ontouchend=b.onmouseup=()=>move[b.dataset.key]=0;
-  });
-
-  setInterval(update,50);
-  loop();
-}
-
-document.querySelectorAll(".ctrl").forEach(b=>{
-  b.dataset.key=b.getAttribute("data");
 });
 
+// 🎮 КНОПКИ
+document.querySelectorAll(".ctrl").forEach(b=>{
+  const d=b.dataset.dir;
+  b.ontouchstart=b.onmousedown=()=>move[d]=1;
+  b.ontouchend=b.onmouseup=()=>move[d]=0;
+});
+
+// 🧠 ЛОГИКА
 function update(){
   if(!me)return;
-  const s=0.015;
+  const s=0.018;
   if(move.up)me.y-=s;
   if(move.down)me.y+=s;
   if(move.left)me.x-=s;
@@ -172,29 +183,31 @@ function update(){
   db.ref("players/"+me.id).update({x:me.x,y:me.y});
 }
 
+// 🎨 РЕНДЕР
 function loop(){
   ctx.clearRect(0,0,W,H);
-  ctx.font="18px system-ui";
+
   ctx.textAlign="center";
   ctx.textBaseline="middle";
+  ctx.font="20px system-ui";
 
   for(const id in players){
     const p=players[id];
-    if(!p.name)continue;
+    if(!p||!p.name)continue;
 
     const x=W*p.x;
     const y=H*p.y;
 
     ctx.fillStyle=p.color;
     ctx.beginPath();
-    ctx.arc(x,y,26,0,Math.PI*2);
+    ctx.arc(x,y,28,0,Math.PI*2);
     ctx.fill();
 
     ctx.lineWidth=4;
     ctx.strokeStyle="#000";
-    ctx.strokeText(p.name,x,y-40);
+    ctx.strokeText(p.name,x,y-44);
     ctx.fillStyle="#fff";
-    ctx.fillText(p.name,x,y-40);
+    ctx.fillText(p.name,x,y-44);
   }
 
   requestAnimationFrame(loop);
