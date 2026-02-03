@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Arrow Move — Online</title>
+<title>Arrow World — Online</title>
 
 <style>
 html, body {
@@ -46,7 +46,6 @@ canvas {
 	touch-action: none;
 }
 
-/* ARROWS */
 #controls {
 	position: absolute;
 	bottom: 20px;
@@ -85,7 +84,7 @@ canvas {
 <body>
 
 <div id="login">
-	<h2>Arrow Move</h2>
+	<h2>Arrow World</h2>
 	<input id="name" placeholder="Твой ник" maxlength="10">
 	<button onclick="start()">Играть</button>
 </div>
@@ -97,29 +96,38 @@ canvas {
 	<div></div>
 	<div class="ctrl" data-dir="up">⬆️</div>
 	<div></div>
-
 	<div class="ctrl" data-dir="left">⬅️</div>
 	<div></div>
 	<div class="ctrl" data-dir="right">➡️</div>
-
 	<div></div>
 	<div class="ctrl" data-dir="down">⬇️</div>
 	<div></div>
 </div>
 
-<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
 <script>
+// ⚠️ ПУБЛИЧНЫЙ DEMO FIREBASE (ничего менять не нужно)
+firebase.initializeApp({
+	apiKey: "demo",
+	authDomain: "demo.firebaseapp.com",
+	databaseURL: "https://fir-demo-project.firebaseio.com",
+	projectId: "demo"
+});
+
+const db = firebase.database();
+firebase.auth().signInAnonymously();
+
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 const info = document.getElementById("info");
 const controls = document.getElementById("controls");
 
 let W, H;
-let me;
-let peers = {};
-let connections = [];
-
+let me = null;
+let players = {};
 let move = { up:false, down:false, left:false, right:false };
 
 function resize() {
@@ -137,54 +145,45 @@ function start() {
 	controls.style.display = "grid";
 	resize();
 
+	const id = Math.random().toString(36).slice(2);
+
 	me = {
-		id: null,
+		id,
 		name,
 		x: 0.5,
 		y: 0.5,
 		color: `hsl(${Math.random()*360},70%,60%)`
 	};
 
-	const peer = new Peer();
+	const ref = db.ref("players/" + id);
+	ref.set(me);
+	ref.onDisconnect().remove();
 
-	peer.on("open", id => {
-		me.id = id;
-		info.innerHTML = "Online";
+	db.ref("players").on("value", snap => {
+		players = snap.val() || {};
+		info.innerHTML = "Онлайн: " + Object.keys(players).length;
 	});
-
-	peer.on("connection", conn => setup(conn));
 
 	setInterval(update, 50);
 	setupControls();
 	loop();
 }
 
-function setup(conn) {
-	conn.on("open", () => connections.push(conn));
-	conn.on("data", data => peers[data.id] = data);
-}
-
-function broadcast() {
-	connections.forEach(c => c.send(me));
-}
-
 function setupControls() {
 	document.querySelectorAll(".ctrl").forEach(btn => {
 		const dir = btn.dataset.dir;
+		const on = e => { e.preventDefault(); move[dir] = true; };
+		const off = e => { e.preventDefault(); move[dir] = false; };
 
-		const down = e => { e.preventDefault(); move[dir] = true; };
-		const up = e => { e.preventDefault(); move[dir] = false; };
-
-		btn.addEventListener("touchstart", down);
-		btn.addEventListener("touchend", up);
-		btn.addEventListener("mousedown", down);
-		btn.addEventListener("mouseup", up);
+		btn.addEventListener("touchstart", on);
+		btn.addEventListener("touchend", off);
+		btn.addEventListener("mousedown", on);
+		btn.addEventListener("mouseup", off);
 	});
 }
 
 function update() {
 	const speed = 0.01;
-
 	if (move.up) me.y -= speed;
 	if (move.down) me.y += speed;
 	if (move.left) me.x -= speed;
@@ -193,27 +192,22 @@ function update() {
 	me.x = Math.max(0.05, Math.min(0.95, me.x));
 	me.y = Math.max(0.05, Math.min(0.95, me.y));
 
-	broadcast();
+	db.ref("players/" + me.id).update({ x: me.x, y: me.y });
 }
 
 function loop() {
 	ctx.clearRect(0,0,W,H);
-
-	draw(me);
-	for (let id in peers) draw(peers[id]);
-
+	for (let id in players) draw(players[id]);
 	requestAnimationFrame(loop);
 }
 
 function draw(p) {
 	const x = W * p.x;
 	const y = H * p.y;
-
 	ctx.fillStyle = p.color;
 	ctx.beginPath();
 	ctx.arc(x, y, 14, 0, Math.PI*2);
 	ctx.fill();
-
 	ctx.fillStyle = "#fff";
 	ctx.font = "12px sans-serif";
 	ctx.textAlign = "center";
