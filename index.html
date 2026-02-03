@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Tap Float — Joystick Online</title>
+<title>Arrow Move — Online</title>
 
 <style>
 html, body {
@@ -42,31 +42,34 @@ button {
 canvas {
 	width: 100%;
 	height: 100%;
+	display: none;
 	touch-action: none;
+}
+
+/* ARROWS */
+#controls {
+	position: absolute;
+	bottom: 20px;
+	left: 20px;
+	display: grid;
+	grid-template-columns: 60px 60px 60px;
+	grid-template-rows: 60px 60px 60px;
+	gap: 6px;
 	display: none;
 }
 
-/* JOYSTICK */
-#joystick {
-	position: absolute;
-	bottom: 40px;
-	left: 40px;
-	width: 120px;
-	height: 120px;
-	border-radius: 50%;
-	background: rgba(255,255,255,0.08);
-	display: none;
+.ctrl {
+	background: rgba(255,255,255,0.15);
+	border-radius: 12px;
+	font-size: 26px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	user-select: none;
 }
 
-#stick {
-	position: absolute;
-	left: 50%;
-	top: 50%;
-	width: 50px;
-	height: 50px;
-	border-radius: 50%;
-	background: rgba(255,255,255,0.6);
-	transform: translate(-50%, -50%);
+.ctrl:active {
+	background: rgba(255,255,255,0.35);
 }
 
 #info {
@@ -82,7 +85,7 @@ canvas {
 <body>
 
 <div id="login">
-	<h2>Tap Float</h2>
+	<h2>Arrow Move</h2>
 	<input id="name" placeholder="Твой ник" maxlength="10">
 	<button onclick="start()">Играть</button>
 </div>
@@ -90,8 +93,18 @@ canvas {
 <div id="info"></div>
 <canvas id="game"></canvas>
 
-<div id="joystick">
-	<div id="stick"></div>
+<div id="controls">
+	<div></div>
+	<div class="ctrl" data-dir="up">⬆️</div>
+	<div></div>
+
+	<div class="ctrl" data-dir="left">⬅️</div>
+	<div></div>
+	<div class="ctrl" data-dir="right">➡️</div>
+
+	<div></div>
+	<div class="ctrl" data-dir="down">⬇️</div>
+	<div></div>
 </div>
 
 <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
@@ -100,14 +113,14 @@ canvas {
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 const info = document.getElementById("info");
-const joystick = document.getElementById("joystick");
-const stick = document.getElementById("stick");
+const controls = document.getElementById("controls");
 
 let W, H;
 let me;
 let peers = {};
 let connections = [];
-let vx = 0, vy = 0;
+
+let move = { up:false, down:false, left:false, right:false };
 
 function resize() {
 	W = canvas.width = window.innerWidth;
@@ -121,7 +134,7 @@ function start() {
 
 	document.getElementById("login").style.display = "none";
 	canvas.style.display = "block";
-	joystick.style.display = "block";
+	controls.style.display = "grid";
 	resize();
 
 	me = {
@@ -141,17 +154,8 @@ function start() {
 
 	peer.on("connection", conn => setup(conn));
 
-	setInterval(() => {
-		me.x += vx;
-		me.y += vy;
-
-		me.x = Math.max(0.05, Math.min(0.95, me.x));
-		me.y = Math.max(0.05, Math.min(0.95, me.y));
-
-		broadcast();
-	}, 50);
-
-	setupJoystick();
+	setInterval(update, 50);
+	setupControls();
 	loop();
 }
 
@@ -164,35 +168,32 @@ function broadcast() {
 	connections.forEach(c => c.send(me));
 }
 
-function setupJoystick() {
-	const rect = joystick.getBoundingClientRect();
-	const center = { x: rect.width/2, y: rect.height/2 };
-	const max = 40;
+function setupControls() {
+	document.querySelectorAll(".ctrl").forEach(btn => {
+		const dir = btn.dataset.dir;
 
-	const move = e => {
-		const t = e.touches[0];
-		const dx = t.clientX - rect.left - center.x;
-		const dy = t.clientY - rect.top - center.y;
-		const dist = Math.min(Math.hypot(dx,dy), max);
-		const angle = Math.atan2(dy,dx);
+		const down = e => { e.preventDefault(); move[dir] = true; };
+		const up = e => { e.preventDefault(); move[dir] = false; };
 
-		const x = Math.cos(angle)*dist;
-		const y = Math.sin(angle)*dist;
+		btn.addEventListener("touchstart", down);
+		btn.addEventListener("touchend", up);
+		btn.addEventListener("mousedown", down);
+		btn.addEventListener("mouseup", up);
+	});
+}
 
-		stick.style.transform = `translate(${x}px, ${y}px) translate(-50%,-50%)`;
+function update() {
+	const speed = 0.01;
 
-		vx = x / max * 0.01;
-		vy = y / max * 0.01;
-	};
+	if (move.up) me.y -= speed;
+	if (move.down) me.y += speed;
+	if (move.left) me.x -= speed;
+	if (move.right) me.x += speed;
 
-	const end = () => {
-		stick.style.transform = "translate(-50%,-50%)";
-		vx = vy = 0;
-	};
+	me.x = Math.max(0.05, Math.min(0.95, me.x));
+	me.y = Math.max(0.05, Math.min(0.95, me.y));
 
-	joystick.addEventListener("touchstart", move);
-	joystick.addEventListener("touchmove", move);
-	joystick.addEventListener("touchend", end);
+	broadcast();
 }
 
 function loop() {
