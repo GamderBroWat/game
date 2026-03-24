@@ -1,1010 +1,1051 @@
 <!DOCTYPE html>
 
-<html lang="ru">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>VideoForge</title>
+<title>GTA Mobile</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #000; overflow: hidden; touch-action: none; }
+  canvas { display: block; width: 100vw; height: 100vh; }
 
-:root {
-–bg: #0a0a0f;
-–surface: #111118;
-–panel: #16161f;
-–border: #252535;
-–accent: #7c5cfc;
-–accent2: #fc5c7d;
-–green: #5cfca0;
-–text: #e8e8f0;
-–muted: #666688;
-–mono: ‘DM Mono’, monospace;
+#hud {
+position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+pointer-events: none; z-index: 10;
+font-family: ‘Pricedown’, ‘Impact’, sans-serif;
 }
 
-- { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+#health-bar {
+position: absolute; top: 16px; right: 16px;
+display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
+}
+.bar-label { color: #fff; font-size: 11px; text-shadow: 1px 1px 2px #000; letter-spacing: 1px; }
+.bar-bg { width: 120px; height: 10px; background: #333; border: 1px solid #555; border-radius: 2px; overflow: hidden; }
+.bar-fill { height: 100%; transition: width 0.2s; border-radius: 2px; }
+#hp-fill { background: linear-gradient(90deg, #e63, #f84); }
+#wanted-stars {
+position: absolute; top: 16px; left: 50%;
+transform: translateX(-50%);
+display: flex; gap: 4px;
+}
+.star { font-size: 18px; color: #555; text-shadow: 0 0 4px #000; transition: color 0.2s; }
+.star.on { color: #ff0; text-shadow: 0 0 8px #fa0; }
 
-body {
-background: var(–bg);
-color: var(–text);
-font-family: ‘Syne’, sans-serif;
-min-height: 100vh;
-overflow-x: hidden;
+#cash {
+position: absolute; top: 16px; left: 16px;
+color: #0f0; font-size: 22px; font-family: Impact, sans-serif;
+text-shadow: 2px 2px 0 #000, 0 0 12px #0f0;
+letter-spacing: 2px;
 }
 
-/* HEADER */
-.header {
-display: flex;
-align-items: center;
-justify-content: space-between;
-padding: 14px 20px;
-border-bottom: 1px solid var(–border);
-background: var(–surface);
-position: sticky;
-top: 0;
-z-index: 100;
+#minimap {
+position: absolute; bottom: 120px; left: 16px;
+width: 100px; height: 100px;
+border: 2px solid #aaa; border-radius: 50%;
+overflow: hidden; background: #1a2a1a;
 }
-.logo {
-font-size: 20px;
-font-weight: 800;
-letter-spacing: -0.5px;
-}
-.logo span { color: var(–accent); }
-.status-dot {
-width: 8px; height: 8px;
-border-radius: 50%;
-background: var(–green);
-box-shadow: 0 0 8px var(–green);
-animation: pulse 2s infinite;
-}
-@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+#minimap canvas { width: 100%; height: 100%; }
 
-/* MAIN LAYOUT */
-.main { padding: 16px; display: flex; flex-direction: column; gap: 16px; max-width: 900px; margin: 0 auto; }
+#msg {
+position: absolute; top: 50%; left: 50%;
+transform: translate(-50%, -50%);
+color: #fff; font-size: 18px; font-family: Impact, sans-serif;
+text-shadow: 2px 2px 4px #000;
+background: rgba(0,0,0,0.6); padding: 8px 18px; border-radius: 4px;
+opacity: 0; transition: opacity 0.5s;
+pointer-events: none; text-align: center;
+}
 
-/* SECTION CARD */
-.card {
-background: var(–surface);
-border: 1px solid var(–border);
-border-radius: 16px;
-overflow: hidden;
+#controls {
+position: fixed; bottom: 0; left: 0; width: 100%; height: 110px;
+pointer-events: none; z-index: 20;
 }
-.card-header {
-display: flex;
-align-items: center;
-gap: 10px;
-padding: 14px 18px;
-border-bottom: 1px solid var(–border);
-background: var(–panel);
-}
-.card-header .icon {
-width: 32px; height: 32px;
-border-radius: 8px;
-display: flex; align-items: center; justify-content: center;
-font-size: 16px;
-}
-.icon-purple { background: rgba(124,92,252,0.2); }
-.icon-pink   { background: rgba(252,92,125,0.2); }
-.icon-green  { background: rgba(92,252,160,0.2); }
-.card-title { font-size: 15px; font-weight: 700; }
-.card-body { padding: 18px; }
 
-/* UPLOAD ZONE */
-.upload-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.upload-zone {
-border: 2px dashed var(–border);
-border-radius: 12px;
-padding: 20px 12px;
-text-align: center;
-cursor: pointer;
-transition: all 0.2s;
-position: relative;
-min-height: 110px;
-display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+/* Joystick */
+#joystick-zone {
+position: absolute; bottom: 10px; left: 10px;
+width: 110px; height: 100px;
+pointer-events: all;
 }
-.upload-zone:hover, .upload-zone.drag { border-color: var(–accent); background: rgba(124,92,252,0.05); }
-.upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-.upload-zone .uz-icon { font-size: 28px; }
-.upload-zone .uz-label { font-size: 12px; font-weight: 600; color: var(–muted); }
-.upload-zone .uz-name { font-size: 11px; color: var(–accent); font-family: var(–mono); word-break: break-all; }
-.upload-zone.loaded { border-color: var(–green); border-style: solid; }
-.upload-zone.loaded .uz-icon { filter: none; }
+#joystick-base {
+position: absolute; bottom: 0; left: 0;
+width: 90px; height: 90px;
+border-radius: 50%; background: rgba(255,255,255,0.12);
+border: 2px solid rgba(255,255,255,0.3);
+}
+#joystick-knob {
+position: absolute; width: 38px; height: 38px;
+border-radius: 50%; background: rgba(255,255,255,0.5);
+border: 2px solid rgba(255,255,255,0.8);
+left: 26px; top: 26px;
+transition: box-shadow 0.1s;
+}
 
-/* VIDEO PREVIEW */
-.preview-wrap {
-position: relative;
-background: #000;
-border-radius: 10px;
-overflow: hidden;
-aspect-ratio: 16/9;
+/* Action buttons */
+#btn-zone {
+position: absolute; bottom: 10px; right: 10px;
+width: 160px; height: 100px;
+pointer-events: all;
+display: grid;
+grid-template-columns: repeat(3, 50px);
+grid-template-rows: repeat(2, 45px);
+gap: 4px;
+align-items: center; justify-items: center;
 }
-video { width: 100%; height: 100%; object-fit: contain; display: block; }
-.preview-label {
-position: absolute; top: 8px; left: 8px;
-background: rgba(0,0,0,0.7);
-color: var(–muted);
-font-size: 10px;
-font-family: var(–mono);
-padding: 3px 8px;
-border-radius: 4px;
-}
-.previews-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-
-/* TIMELINE */
-.timeline-wrap {
-position: relative;
-background: #0d0d15;
-border-radius: 10px;
-padding: 12px;
-border: 1px solid var(–border);
-margin-bottom: 14px;
-user-select: none;
-}
-.timeline-label {
-font-size: 11px;
-font-family: var(–mono);
-color: var(–muted);
-margin-bottom: 8px;
-}
-.timeline-bar-wrap {
-position: relative;
-height: 48px;
-border-radius: 6px;
-overflow: hidden;
-cursor: crosshair;
-}
-.timeline-base {
-position: absolute; inset: 0;
-background: linear-gradient(90deg, rgba(124,92,252,0.15), rgba(124,92,252,0.05));
-border-radius: 6px;
-}
-.timeline-segment {
-position: absolute;
-top: 0; bottom: 0;
-border-radius: 4px;
-cursor: move;
-display: flex;
-align-items: center;
-justify-content: center;
-font-size: 10px;
-font-family: var(–mono);
-font-weight: 500;
-white-space: nowrap;
-border: 1px solid rgba(255,255,255,0.1);
-transition: filter 0.1s;
-}
-.timeline-segment:hover { filter: brightness(1.2); }
-.timeline-segment .seg-handle {
-position: absolute;
-top: 0; bottom: 0;
-width: 8px;
-background: rgba(255,255,255,0.3);
-cursor: ew-resize;
-border-radius: 2px;
-}
-.seg-handle-left { left: 0; }
-.seg-handle-right { right: 0; }
-.seg-label { pointer-events: none; font-size: 10px; }
-
-/* SPEED SEGMENTS LIST */
-.seg-list { display: flex; flex-direction: column; gap: 8px; }
-.seg-row {
-background: var(–panel);
-border: 1px solid var(–border);
-border-radius: 10px;
-padding: 12px 14px;
-display: flex;
-align-items: center;
-gap: 10px;
-}
-.seg-row .seg-color {
-width: 10px; height: 36px;
-border-radius: 4px;
-flex-shrink: 0;
-}
-.seg-row .seg-info { flex: 1; }
-.seg-row .seg-times {
-font-family: var(–mono);
-font-size: 12px;
-color: var(–accent);
-margin-bottom: 2px;
-}
-.seg-row .seg-speed-label {
-font-size: 11px;
-color: var(–muted);
-}
-.speed-slider-wrap { display: flex; align-items: center; gap: 8px; flex: 1; }
-input[type=range] {
--webkit-appearance: none;
-width: 100%;
-height: 4px;
-border-radius: 2px;
-background: var(–border);
-outline: none;
-}
-input[type=range]::-webkit-slider-thumb {
--webkit-appearance: none;
-width: 16px; height: 16px;
-border-radius: 50%;
-background: var(–accent);
-box-shadow: 0 0 6px var(–accent);
-cursor: pointer;
-}
-.speed-val {
-font-family: var(–mono);
-font-size: 13px;
-font-weight: 500;
-color: var(–text);
-min-width: 36px;
-text-align: right;
-}
-.del-btn {
-background: rgba(252,92,125,0.1);
-border: 1px solid rgba(252,92,125,0.3);
-color: var(–accent2);
-border-radius: 7px;
-width: 30px; height: 30px;
-display: flex; align-items: center; justify-content: center;
-cursor: pointer;
-font-size: 14px;
-flex-shrink: 0;
-}
-.del-btn:hover { background: rgba(252,92,125,0.25); }
-
-/* ADD SEGMENT BUTTON */
-.add-seg-btn {
-width: 100%;
-background: rgba(124,92,252,0.08);
-border: 1px dashed rgba(124,92,252,0.4);
-color: var(–accent);
-border-radius: 10px;
-padding: 12px;
-font-family: ‘Syne’, sans-serif;
-font-size: 13px;
-font-weight: 600;
-cursor: pointer;
-transition: all 0.2s;
-display: flex; align-items: center; justify-content: center; gap: 6px;
-}
-.add-seg-btn:hover { background: rgba(124,92,252,0.15); }
-
-/* ACTION BUTTONS */
 .btn {
-display: flex; align-items: center; justify-content: center; gap: 8px;
-padding: 14px 20px;
-border-radius: 12px;
-font-family: ‘Syne’, sans-serif;
-font-size: 15px;
-font-weight: 700;
-cursor: pointer;
-border: none;
-transition: all 0.2s;
-width: 100%;
+width: 46px; height: 46px; border-radius: 50%;
+display: flex; align-items: center; justify-content: center;
+font-size: 10px; font-weight: bold; color: #fff;
+border: 2px solid rgba(255,255,255,0.5);
+background: rgba(0,0,0,0.4);
+user-select: none; -webkit-user-select: none;
+text-shadow: 1px 1px 2px #000;
+letter-spacing: 0.5px;
+pointer-events: all;
+active-color: rgba(255,255,255,0.3);
 }
-.btn-primary {
-background: linear-gradient(135deg, var(–accent), #5c3cf0);
-color: #fff;
-box-shadow: 0 4px 20px rgba(124,92,252,0.35);
-}
-.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 24px rgba(124,92,252,0.5); }
-.btn-primary:active { transform: translateY(0); }
-.btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
-.btn-secondary {
-background: var(–panel);
-border: 1px solid var(–border);
-color: var(–text);
-}
-.btn-green {
-background: linear-gradient(135deg, #2dcc70, #1a9950);
-color: #fff;
-box-shadow: 0 4px 20px rgba(92,252,160,0.25);
-}
+.btn:active { background: rgba(255,255,255,0.25); }
+#btn-jump { background: rgba(20,120,220,0.55); border-color: #6af; grid-column: 3; grid-row: 1; }
+#btn-enter { background: rgba(220,160,20,0.55); border-color: #fd0; grid-column: 2; grid-row: 1; }
+#btn-shoot { background: rgba(220,40,40,0.55); border-color: #f66; grid-column: 3; grid-row: 2; }
+#btn-run  { background: rgba(40,180,80,0.55);  border-color: #4f8; grid-column: 1; grid-row: 2; }
+#btn-cam  { background: rgba(120,60,200,0.55); border-color: #b6f; grid-column: 1; grid-row: 1; }
+#btn-brake{ background: rgba(200,80,20,0.55);  border-color: #f84; grid-column: 2; grid-row: 2; }
 
-/* PROGRESS */
-.progress-wrap {
-display: none;
-padding: 16px 18px;
-border-top: 1px solid var(–border);
-}
-.progress-wrap.visible { display: block; }
-.progress-label {
-font-size: 12px;
-font-family: var(–mono);
-color: var(–muted);
-margin-bottom: 8px;
-}
-.progress-bar-outer {
-height: 6px;
-background: var(–border);
-border-radius: 3px;
-overflow: hidden;
-}
-.progress-bar-inner {
-height: 100%;
-background: linear-gradient(90deg, var(–accent), var(–accent2));
-border-radius: 3px;
-transition: width 0.3s;
-width: 0%;
-}
-
-/* MERGE ORDER */
-.order-row {
-display: flex;
-align-items: center;
-gap: 12px;
-padding: 10px 14px;
-background: var(–panel);
-border: 1px solid var(–border);
-border-radius: 10px;
-}
-.order-chip {
-font-size: 11px;
-font-family: var(–mono);
-background: rgba(124,92,252,0.2);
-color: var(–accent);
-border-radius: 5px;
-padding: 3px 8px;
-}
-.order-name { font-size: 13px; color: var(–muted); flex: 1; font-family: var(–mono); }
-.swap-btn {
-background: var(–border);
-border: none;
-color: var(–text);
-border-radius: 7px;
-padding: 6px 14px;
-font-family: ‘Syne’, sans-serif;
-font-size: 12px;
-font-weight: 600;
-cursor: pointer;
-}
-.swap-btn:hover { background: var(–accent); color: #fff; }
-
-/* TOAST */
-#toast {
+/* Camera look zone (right center) */
+#look-zone {
 position: fixed;
-bottom: 30px; left: 50%;
-transform: translateX(-50%) translateY(80px);
-background: var(–panel);
-border: 1px solid var(–border);
-color: var(–text);
-padding: 12px 20px;
-border-radius: 10px;
-font-size: 13px;
-z-index: 999;
-transition: transform 0.3s;
-white-space: nowrap;
+left: 50%; top: 0;
+width: 50%; height: calc(100% - 110px);
+pointer-events: all;
+z-index: 15;
 }
-#toast.show { transform: translateX(-50%) translateY(0); }
-
-/* PLAYHEAD */
-.playhead {
-position: absolute;
-top: 0; bottom: 0;
-width: 2px;
-background: var(–accent2);
-pointer-events: none;
-z-index: 5;
-}
-
-.empty-state {
-text-align: center;
-padding: 24px;
-color: var(–muted);
-font-size: 13px;
-}
-
-.tabs { display: flex; gap: 4px; margin-bottom: 14px; }
-.tab {
-flex: 1;
-padding: 9px;
-border-radius: 8px;
-font-family: ‘Syne’, sans-serif;
-font-size: 12px;
-font-weight: 700;
-cursor: pointer;
-border: 1px solid var(–border);
-background: transparent;
-color: var(–muted);
-transition: all 0.2s;
-text-align: center;
-}
-.tab.active { background: var(–accent); color: #fff; border-color: var(–accent); }
-
-.info-badge {
-font-size: 10px;
-background: rgba(92,252,160,0.15);
-color: var(–green);
-border-radius: 5px;
-padding: 2px 7px;
-font-family: var(–mono);
-}
-
-/* Range input accent colors */
-.range-accent::-webkit-slider-thumb { background: var(–accent2) !important; box-shadow: 0 0 6px var(–accent2) !important; }
 </style>
 
 </head>
 <body>
-
-<header class="header">
-  <div class="logo">Video<span>Forge</span></div>
-  <div style="display:flex;align-items:center;gap:10px">
-    <span class="info-badge">локально</span>
-    <div class="status-dot"></div>
+<canvas id="c"></canvas>
+<div id="hud">
+  <div id="cash">$0</div>
+  <div id="health-bar">
+    <div class="bar-label">HP</div>
+    <div class="bar-bg"><div class="bar-fill" id="hp-fill" style="width:100%"></div></div>
   </div>
-</header>
-
-<div class="main">
-
-  <!-- STEP 1: UPLOAD -->
-
-  <div class="card">
-    <div class="card-header">
-      <div class="icon icon-purple">📁</div>
-      <div class="card-title">Загрузить видео</div>
-    </div>
-    <div class="card-body">
-      <div class="upload-grid">
-        <div class="upload-zone" id="zone1">
-          <input type="file" accept="video/*" id="file1" onchange="loadVideo(1,this)">
-          <div class="uz-icon">🎬</div>
-          <div class="uz-label">Видео 1</div>
-          <div class="uz-name" id="name1">Нажмите для выбора</div>
-        </div>
-        <div class="upload-zone" id="zone2">
-          <input type="file" accept="video/*" id="file2" onchange="loadVideo(2,this)">
-          <div class="uz-icon">🎬</div>
-          <div class="uz-label">Видео 2</div>
-          <div class="uz-name" id="name2">Нажмите для выбора</div>
-        </div>
-      </div>
-
-```
-  <div style="margin-top:14px">
-    <div class="tabs">
-      <button class="tab active" onclick="switchMode('merge')" id="tab-merge">Склеить оба</button>
-      <button class="tab" onclick="switchMode('single')" id="tab-single">Одно видео</button>
-    </div>
+  <div id="wanted-stars">
+    <span class="star" id="s1">★</span><span class="star" id="s2">★</span>
+    <span class="star" id="s3">★</span><span class="star" id="s4">★</span><span class="star" id="s5">★</span>
   </div>
-
-  <!-- MERGE ORDER -->
-  <div id="merge-order" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">
-    <div class="order-row">
-      <span class="order-chip">1-й</span>
-      <span class="order-name" id="order-name1">Видео 1</span>
-      <button class="swap-btn" onclick="swapOrder()">⇅ Поменять</button>
-    </div>
-    <div class="order-row">
-      <span class="order-chip">2-й</span>
-      <span class="order-name" id="order-name2">Видео 2</span>
-    </div>
-  </div>
-
-  <!-- PREVIEWS -->
-  <div class="previews-row" id="preview-row" style="display:none;margin-bottom:14px">
-    <div class="preview-wrap">
-      <div class="preview-label" id="prev-lbl1">Видео 1</div>
-      <video id="prev1" controls playsinline></video>
-    </div>
-    <div class="preview-wrap">
-      <div class="preview-label" id="prev-lbl2">Видео 2</div>
-      <video id="prev2" controls playsinline></video>
-    </div>
-  </div>
-</div>
-```
-
-  </div>
-
-  <!-- STEP 2: SPEED SEGMENTS -->
-
-  <div class="card" id="speed-card" style="display:none">
-    <div class="card-header">
-      <div class="icon icon-pink">⚡</div>
-      <div class="card-title">Скорость по участкам</div>
-    </div>
-    <div class="card-body">
-      <div class="tabs" id="speed-video-tabs">
-        <button class="tab active" onclick="switchSpeedVideo(1)" id="sv-tab1">Видео 1</button>
-        <button class="tab" onclick="switchSpeedVideo(2)" id="sv-tab2">Видео 2</button>
-      </div>
-
-```
-  <!-- TIMELINE for current video -->
-  <div class="timeline-wrap" id="timeline-wrap">
-    <div class="timeline-label" id="tl-label">Хронология: <span id="tl-dur">0.0s</span></div>
-    <div class="timeline-bar-wrap" id="tl-bar" onclick="onTimelineClick(event)">
-      <div class="timeline-base"></div>
-      <div id="tl-segments"></div>
-      <div class="playhead" id="playhead" style="left:0%"></div>
-    </div>
-    <div style="display:flex;justify-content:space-between;margin-top:4px">
-      <span style="font-family:var(--mono);font-size:10px;color:var(--muted)">0s</span>
-      <span style="font-family:var(--mono);font-size:10px;color:var(--muted)" id="tl-end">0s</span>
-    </div>
-  </div>
-
-  <!-- Segment list -->
-  <div class="seg-list" id="seg-list"></div>
-  <div class="empty-state" id="seg-empty" style="display:none">Нет сегментов — нажмите «+» чтобы добавить</div>
-
-  <button class="add-seg-btn" onclick="addSegment()" style="margin-top:10px">
-    ＋ Добавить сегмент скорости
-  </button>
-</div>
-```
-
-  </div>
-
-  <!-- STEP 3: RENDER -->
-
-  <div class="card" id="render-card" style="display:none">
-    <div class="card-header">
-      <div class="icon icon-green">🎞️</div>
-      <div class="card-title">Обработка и скачивание</div>
-    </div>
-    <div class="card-body">
-      <button class="btn btn-primary" id="render-btn" onclick="startRender()">
-        ▶ Обработать и скачать
-      </button>
-    </div>
-    <div class="progress-wrap" id="progress-wrap">
-      <div class="progress-label" id="progress-label">Обработка...</div>
-      <div class="progress-bar-outer">
-        <div class="progress-bar-inner" id="progress-bar"></div>
-      </div>
-    </div>
-  </div>
-
+  <div id="minimap"><canvas id="mc"></canvas></div>
+  <div id="msg" id="msg"></div>
 </div>
 
-<div id="toast"></div>
+<div id="controls">
+  <div id="joystick-zone">
+    <div id="joystick-base"><div id="joystick-knob"></div></div>
+  </div>
+  <div id="btn-zone">
+    <button class="btn" id="btn-cam">CAM</button>
+    <button class="btn" id="btn-enter">ENTER</button>
+    <button class="btn" id="btn-jump">JUMP</button>
+    <button class="btn" id="btn-run">RUN</button>
+    <button class="btn" id="btn-brake">BRAKE</button>
+    <button class="btn" id="btn-shoot">SHOOT</button>
+  </div>
+</div>
+<div id="look-zone"></div>
 
 <script>
-// ============================================================
-// STATE
-// ============================================================
-let videos = { 1: null, 2: null };       // { file, url, duration }
-let order = [1, 2];                        // merge order
-let mode = 'merge';                        // 'merge' | 'single'
-let activeSpeedVideo = 1;
-let segments = { 1: [], 2: [] };           // per-video speed segments
-let segColors = ['#7c5cfc','#fc5c7d','#5cfca0','#fcce5c','#5cb8fc','#fc935c'];
-let dragInfo = null;
+// ==================== THREE.JS INLINE ====================
+// We load Three.js from CDN
+</script>
 
-// ============================================================
-// UPLOAD
-// ============================================================
-function loadVideo(n, input) {
-  const file = input.files[0];
-  if (!file) return;
-  const url = URL.createObjectURL(file);
-  const vid = document.createElement('video');
-  vid.src = url;
-  vid.onloadedmetadata = () => {
-    videos[n] = { file, url, duration: vid.duration };
-    document.getElementById('name' + n).textContent = file.name.slice(0, 28);
-    document.getElementById('zone' + n).classList.add('loaded');
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
-    // Set preview
-    document.getElementById('prev' + n).src = url;
-    document.getElementById('preview-row').style.display = 'grid';
+<script>
+'use strict';
 
-    updateOrderNames();
-    updateUI();
-    showToast('Видео ' + n + ' загружено ✓');
-  };
+// ===================== GLOBALS =====================
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const W = () => window.innerWidth;
+const H = () => window.innerHeight;
+renderer.setSize(W(), H());
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87CEEB);
+scene.fog = new THREE.Fog(0x87CEEB, 40, 200);
+
+const camera = new THREE.PerspectiveCamera(60, W()/H(), 0.1, 500);
+camera.position.set(0, 4, -8);
+
+window.addEventListener('resize', () => {
+  renderer.setSize(W(), H());
+  camera.aspect = W()/H();
+  camera.updateProjectionMatrix();
+});
+
+// ===================== LIGHTING =====================
+const ambient = new THREE.AmbientLight(0xffeedd, 0.6);
+scene.add(ambient);
+const sun = new THREE.DirectionalLight(0xfff5cc, 1.2);
+sun.position.set(50, 80, 30);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024,1024);
+sun.shadow.camera.near = 1;
+sun.shadow.camera.far = 300;
+sun.shadow.camera.left = sun.shadow.camera.bottom = -80;
+sun.shadow.camera.right = sun.shadow.camera.top = 80;
+scene.add(sun);
+
+// ===================== HELPERS =====================
+function box(w,h,d,color,rx,ry,rz){
+  const g = new THREE.BoxGeometry(w,h,d);
+  const m = new THREE.MeshLambertMaterial({color});
+  const mesh = new THREE.Mesh(g,m);
+  mesh.castShadow = mesh.receiveShadow = true;
+  if(rx) mesh.rotation.x=rx;
+  if(ry) mesh.rotation.y=ry;
+  if(rz) mesh.rotation.z=rz;
+  return mesh;
+}
+function cyl(rt,rb,h,seg,color){
+  const g = new THREE.CylinderGeometry(rt,rb,h,seg);
+  const m = new THREE.MeshLambertMaterial({color});
+  return new THREE.Mesh(g,m);
 }
 
-function updateOrderNames() {
-  const n1 = videos[order[0]];
-  const n2 = videos[order[1]];
-  document.getElementById('order-name1').textContent = n1 ? n1.file.name.slice(0, 24) : 'Видео ' + order[0];
-  document.getElementById('order-name2').textContent = n2 ? n2.file.name.slice(0, 24) : 'Видео ' + order[1];
+// ===================== WORLD =====================
+// Ground
+const groundGeo = new THREE.PlaneGeometry(400,400,20,20);
+const groundMat = new THREE.MeshLambertMaterial({color:0x4a7a3a});
+const ground = new THREE.Mesh(groundGeo, groundMat);
+ground.rotation.x = -Math.PI/2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// Roads
+function addRoad(x,z,w,l,rot){
+  const r = box(w,0.05,l,0x333333);
+  r.position.set(x,0.01,z);
+  if(rot) r.rotation.y=rot;
+  scene.add(r);
+  // White lines
+  for(let i=-l/2+5;i<l/2;i+=10){
+    const line = box(0.3,0.06,4,0xffffff);
+    line.position.set(x, 0.02, z+i);
+    if(rot){ line.rotation.y=rot; line.position.set(x+i,0.02,z); }
+    scene.add(line);
+  }
+}
+addRoad(0, 0, 8, 200, 0);      // Main road Z
+addRoad(0, 0, 8, 200, Math.PI/2); // Cross road X
+addRoad(30,0,8,200,0);
+addRoad(-30,0,8,200,0);
+
+// Sidewalks
+function addSidewalk(x,z,w,l,rot){
+  const s = box(w,0.08,l,0x999988);
+  s.position.set(x,0.01,z);
+  if(rot) s.rotation.y=rot;
+  scene.add(s);
+}
+addSidewalk(5.5,0,3,200,0);
+addSidewalk(-5.5,0,3,200,0);
+
+// Buildings
+const buildingColors = [0xcc9966,0xaaaacc,0xbb8855,0x99aacc,0xddccaa,0x887766];
+function addBuilding(x,z,w,h,d,color){
+  const b = box(w,h,d, color||buildingColors[Math.floor(Math.random()*buildingColors.length)]);
+  b.position.set(x, h/2, z);
+  scene.add(b);
+  // Windows
+  const rows = Math.floor(h/2.5);
+  const cols = Math.floor(w/2);
+  for(let r=0;r<rows;r++){
+    for(let c=0;c<cols;c++){
+      const lit = Math.random()>0.3;
+      const win = box(0.6,0.8,0.05, lit?0xffffaa:0x224455);
+      win.position.set(x - w/2 + 1 + c*2, h/2-1.5-r*2.5, z + d/2 + 0.01);
+      scene.add(win);
+    }
+  }
+  // Roof detail
+  const roof = box(w+0.2,0.4,d+0.2,0x555544);
+  roof.position.set(x,h+0.2,z);
+  scene.add(roof);
 }
 
-let orderSwapped = false;
-function swapOrder() {
-  order = [order[1], order[0]];
-  updateOrderNames();
-  showToast('Порядок изменён');
+// City blocks
+const blocks = [
+  [10,10,8,12,8],[10,30,6,18,6],[10,50,10,8,10],[10,70,7,22,7],
+  [-10,10,8,15,8],[-10,30,6,10,6],[-10,50,9,20,9],[-10,70,8,12,8],
+  [10,-10,8,10,8],[10,-30,6,16,6],[10,-50,7,9,7],
+  [-10,-10,8,14,8],[-10,-30,6,11,6],[-10,-50,9,18,9],
+  [40,10,8,8,8],[40,30,6,20,6],[40,50,9,12,9],
+  [-40,10,8,16,8],[-40,30,6,9,6],[-40,50,8,14,8],
+  [10,90,10,7,10],[-10,90,8,11,8],[40,80,7,6,7],
+];
+blocks.forEach(([x,z,w,h,d])=>addBuilding(x,z,w,h,d));
+
+// Trees
+function addTree(x,z){
+  const trunk = cyl(0.15,0.2,1.5,6,0x8B5E3C);
+  trunk.position.set(x,0.75,z);
+  trunk.castShadow=true;
+  scene.add(trunk);
+  const top = cyl(0,1.2,2.5,7,0x2d6a2d);
+  top.position.set(x,2.5,z);
+  top.castShadow=true;
+  scene.add(top);
+}
+for(let i=-80;i<80;i+=15) addTree(7,i);
+for(let i=-80;i<80;i+=15) addTree(-7,i);
+for(let i=-80;i<80;i+=15) addTree(37,i);
+
+// Street lamps
+function addLamp(x,z){
+  const post = cyl(0.05,0.05,4,6,0x666666);
+  post.position.set(x,2,z);
+  scene.add(post);
+  const top = box(1.5,0.1,0.1,0x666666);
+  top.position.set(x,4,z);
+  scene.add(top);
+  const light = new THREE.PointLight(0xffeeaa,0.8,12);
+  light.position.set(x,4.2,z);
+  scene.add(light);
+  const bulb = cyl(0.1,0.1,0.2,6,0xffffaa);
+  bulb.position.set(x,4,z);
+  scene.add(bulb);
+}
+for(let i=-60;i<60;i+=20){
+  addLamp(4.5,i); addLamp(-4.5,i);
 }
 
-function switchMode(m) {
-  mode = m;
-  document.getElementById('tab-merge').classList.toggle('active', m === 'merge');
-  document.getElementById('tab-single').classList.toggle('active', m === 'single');
-  document.getElementById('merge-order').style.display = m === 'merge' ? 'flex' : 'none';
-  document.getElementById('sv-tab2').style.display = m === 'merge' ? '' : 'none';
-  updateUI();
+// ===================== CARS =====================
+class Car {
+  constructor(x,z,color,isNPC){
+    this.group = new THREE.Group();
+    this.isNPC = isNPC;
+    this.speed = 0;
+    this.steer = 0;
+    this.hp = 100;
+    this.onFire = false;
+    this.fireTime = 0;
+    this.crashed = false;
+
+    // Body
+    const body = box(2,0.7,4.2, color);
+    body.position.y = 0.5;
+    this.group.add(body);
+
+    // Roof
+    const roof = box(1.6,0.65,2.2, color);
+    roof.position.set(0,1.15,0);
+    this.group.add(roof);
+
+    // Windshield
+    const ws = box(1.55,0.5,0.05,0x88ccff);
+    ws.position.set(0,1.1,1.1);
+    this.group.add(ws);
+    const wsb = box(1.55,0.5,0.05,0x88ccff);
+    wsb.position.set(0,1.1,-1.1);
+    this.group.add(wsb);
+
+    // Wheels
+    this.wheels = [];
+    const wpos = [[0.95,0,1.5],[-0.95,0,1.5],[0.95,0,-1.5],[-0.95,0,-1.5]];
+    wpos.forEach(([wx,wy,wz])=>{
+      const w = cyl(0.32,0.32,0.22,12,0x222222);
+      w.rotation.z = Math.PI/2;
+      w.position.set(wx,wy,wz);
+      this.group.add(w);
+      const hub = cyl(0.12,0.12,0.24,6,0x888888);
+      hub.rotation.z=Math.PI/2;
+      hub.position.set(wx,wy,wz);
+      this.group.add(hub);
+      this.wheels.push(w);
+    });
+
+    // Headlights
+    const hl1 = box(0.3,0.18,0.05,0xffffee);
+    hl1.position.set(0.65,0.55,2.1);
+    this.group.add(hl1);
+    const hl2 = box(0.3,0.18,0.05,0xffffee);
+    hl2.position.set(-0.65,0.55,2.1);
+    this.group.add(hl2);
+
+    // Taillights
+    const tl1 = box(0.3,0.15,0.05,0xff2200);
+    tl1.position.set(0.65,0.55,-2.1);
+    this.group.add(tl1);
+    const tl2 = box(0.3,0.15,0.05,0xff2200);
+    tl2.position.set(-0.65,0.55,-2.1);
+    this.group.add(tl2);
+
+    this.group.position.set(x,0.35,z);
+    this.group.castShadow = true;
+    scene.add(this.group);
+
+    this.vel = new THREE.Vector3();
+    this.angVel = 0;
+  }
+
+  update(dt, gas, brk, steerIn, isPlayer){
+    if(this.crashed) return;
+    const maxSpd = isPlayer && input.run ? 20 : 12;
+    const accel = isPlayer && input.run ? 14 : 8;
+    const drag = 3.5;
+    const brakeF = 10;
+    const steerSpd = 1.8;
+
+    if(gas) this.speed += accel*dt;
+    else if(brk) this.speed -= brakeF*dt;
+    else this.speed *= (1 - drag*dt);
+
+    this.speed = Math.max(-5, Math.min(maxSpd, this.speed));
+
+    if(Math.abs(this.speed)>0.3){
+      const steerFactor = Math.min(1, Math.abs(this.speed)/8);
+      this.steer += (steerIn - this.steer) * steerSpd * dt;
+      this.group.rotation.y -= this.steer * this.speed * 0.015 * steerFactor;
+    }
+
+    const dir = new THREE.Vector3(0,0,1);
+    dir.applyQuaternion(this.group.quaternion);
+    this.group.position.addScaledVector(dir, this.speed * dt);
+    this.group.position.y = 0.35;
+
+    // Spin wheels
+    this.wheels.forEach(w => {
+      w.rotation.x += this.speed * dt * 2;
+    });
+
+    // NPC AI: simple follow road
+    if(this.isNPC){
+      const z = this.group.position.z;
+      if(z > 90 || z < -90){
+        this.group.rotation.y += Math.PI;
+      }
+    }
+  }
+
+  explode(){
+    if(this.onFire) return;
+    this.onFire = true;
+    this.fireTime = 0;
+    // Turn body red
+    this.group.children.forEach(c=>{
+      if(c.material) c.material.color.setHex(0x443322);
+    });
+    showMsg('💥 CAR ON FIRE!');
+  }
 }
 
-function updateUI() {
-  const hasV1 = !!videos[1];
-  const hasV2 = !!videos[2];
-  const canProceed = mode === 'single' ? hasV1 : (hasV1 || hasV2);
+// ===================== PLAYER (on foot) =====================
+class Player {
+  constructor(){
+    this.group = new THREE.Group();
+    this.hp = 100;
+    this.cash = 0;
+    this.wanted = 0;
+    this.inCar = false;
+    this.car = null;
+    this.onGround = true;
+    this.vy = 0;
+    this.speed = 0;
+    this.shooting = false;
+    this.shootCooldown = 0;
+    this.dead = false;
 
-  document.getElementById('speed-card').style.display = canProceed ? '' : 'none';
-  document.getElementById('render-card').style.display = canProceed ? '' : 'none';
+    // Body
+    const torso = box(0.5,0.7,0.3,0x4466cc);
+    torso.position.y=0.95;
+    this.group.add(torso);
+    // Head
+    const head = box(0.35,0.35,0.35,0xffcc99);
+    head.position.y=1.55;
+    this.group.add(head);
+    // Legs
+    const legL = box(0.18,0.65,0.2,0x2244aa);
+    legL.position.set(0.13,0.33,0);
+    this.group.add(legL);
+    const legR = box(0.18,0.65,0.2,0x2244aa);
+    legR.position.set(-0.13,0.33,0);
+    this.group.add(legR);
+    this.legL = legL; this.legR = legR;
+    // Arms
+    const armL = box(0.15,0.6,0.15,0x4466cc);
+    armL.position.set(0.33,0.95,0);
+    this.group.add(armL);
+    const armR = box(0.15,0.6,0.15,0x4466cc);
+    armR.position.set(-0.33,0.95,0);
+    this.group.add(armR);
+    // Gun
+    const gun = box(0.06,0.06,0.35,0x333333);
+    gun.position.set(-0.38,1.0,0.2);
+    this.group.add(gun);
+    this.gunMesh = gun;
 
-  // Update tabs for speed
-  document.getElementById('sv-tab1').style.opacity = hasV1 ? '1' : '0.4';
-  document.getElementById('sv-tab2').style.opacity = hasV2 ? '1' : '0.4';
+    this.group.position.set(0,0,0);
+    scene.add(this.group);
 
-  renderTimeline();
-  renderSegList();
+    this.vel = new THREE.Vector3();
+  }
+
+  update(dt){
+    if(this.dead) return;
+    if(this.inCar) return;
+
+    const walkSpd = input.run ? 8 : 4;
+    const jx = input.jx, jy = input.jy;
+    const len = Math.sqrt(jx*jx+jy*jy);
+    const moving = len > 0.1;
+
+    if(moving){
+      const ang = Math.atan2(jx, jy) + camYaw;
+      this.group.rotation.y = ang;
+      this.vel.x = Math.sin(ang)*walkSpd;
+      this.vel.z = Math.cos(ang)*walkSpd;
+    } else {
+      this.vel.x *= 0.8;
+      this.vel.z *= 0.8;
+    }
+
+    // Jump
+    if(input.jump && this.onGround){
+      this.vy = 7;
+      this.onGround = false;
+      input.jump = false;
+    }
+    this.vy -= 18*dt;
+    this.group.position.y += this.vy*dt;
+    if(this.group.position.y <= 0){
+      this.group.position.y = 0;
+      this.vy = 0;
+      this.onGround = true;
+    }
+
+    this.group.position.x += this.vel.x*dt;
+    this.group.position.z += this.vel.z*dt;
+
+    // Walk anim
+    if(moving){
+      const t = Date.now()*0.008;
+      this.legL.rotation.x = Math.sin(t)*0.6;
+      this.legR.rotation.x = -Math.sin(t)*0.6;
+    }
+
+    // Shoot
+    this.shootCooldown -= dt;
+    if(input.shoot && this.shootCooldown <= 0){
+      this.shootCooldown = 0.25;
+      this.shoot();
+    }
+
+    // Pickup cash
+    cashItems.forEach((c,i)=>{
+      if(c && this.group.position.distanceTo(c.position)<1.5){
+        scene.remove(c);
+        cashItems[i]=null;
+        this.cash += 100;
+        updateHUD();
+        showMsg('💰 +$100');
+      }
+    });
+  }
+
+  shoot(){
+    const dir = new THREE.Vector3(0,0,1);
+    dir.applyQuaternion(this.group.quaternion);
+    const bullet = spawnBullet(
+      this.group.position.clone().add(new THREE.Vector3(0,1.1,0)),
+      dir, false
+    );
+    this.wanted = Math.min(5, this.wanted+1);
+    updateHUD();
+    // Muzzle flash
+    showFlash();
+  }
+
+  damage(amt){
+    this.hp = Math.max(0, this.hp-amt);
+    updateHUD();
+    if(this.hp<=0) this.die();
+  }
+
+  die(){
+    this.dead = true;
+    showMsg('💀 WASTED\nTap to Respawn', true);
+    setTimeout(()=>respawn(),3000);
+  }
 }
 
-// ============================================================
-// SPEED VIDEO TABS
-// ============================================================
-function switchSpeedVideo(n) {
-  activeSpeedVideo = n;
-  document.getElementById('sv-tab1').classList.toggle('active', n === 1);
-  document.getElementById('sv-tab2').classList.toggle('active', n === 2);
-  renderTimeline();
-  renderSegList();
+// ===================== BULLETS =====================
+const bullets = [];
+const bulletGeo = new THREE.SphereGeometry(0.08,4,4);
+const bulletMat = new THREE.MeshBasicMaterial({color:0xffff00});
+
+function spawnBullet(pos, dir, fromNPC){
+  const m = new THREE.Mesh(bulletGeo, bulletMat);
+  m.position.copy(pos);
+  scene.add(m);
+  bullets.push({mesh:m, vel:dir.clone().multiplyScalar(40), life:2, fromNPC});
+  return m;
 }
 
-// ============================================================
-// TIMELINE
-// ============================================================
-function renderTimeline() {
-  const v = videos[activeSpeedVideo];
-  const dur = v ? v.duration : 0;
-  document.getElementById('tl-dur').textContent = dur.toFixed(1) + 's';
-  document.getElementById('tl-end').textContent = dur.toFixed(1) + 's';
+function showFlash(){
+  const flash = new THREE.PointLight(0xffaa00,3,5);
+  flash.position.copy(player.group.position).y+=1.1;
+  scene.add(flash);
+  setTimeout(()=>scene.remove(flash),80);
+}
 
-  const wrap = document.getElementById('tl-segments');
-  wrap.innerHTML = '';
+// ===================== NPC CARS =====================
+const cars = [];
+const carColors = [0xcc2222,0x2244cc,0x228833,0xccaa22,0x883399,0x22aacc,0xcc6622,0xaaaaaa];
+for(let i=0;i<6;i++){
+  const c = new Car(
+    Math.random()>0.5?2:-2,
+    (Math.random()-0.5)*100,
+    carColors[i%carColors.length],
+    true
+  );
+  c.group.rotation.y = Math.random()>0.5?0:Math.PI;
+  cars.push(c);
+}
 
-  if (!v) return;
+// Player car
+const playerCar = new Car(4, 5, 0xff4400, false);
+cars.push(playerCar);
 
-  const segs = segments[activeSpeedVideo];
-  segs.forEach((seg, i) => {
-    const left = (seg.start / dur) * 100;
-    const width = ((seg.end - seg.start) / dur) * 100;
-    const color = segColors[i % segColors.length];
-    const el = document.createElement('div');
-    el.className = 'timeline-segment';
-    el.style.cssText = `left:${left}%;width:${width}%;background:${color}22;border-color:${color}66;`;
-    el.innerHTML = `
-      <div class="seg-handle seg-handle-left" data-i="${i}" data-side="left"></div>
-      <span class="seg-label" style="color:${color}">${seg.speed}x</span>
-      <div class="seg-handle seg-handle-right" data-i="${i}" data-side="right"></div>
-    `;
-    wrap.appendChild(el);
+// ===================== PLAYER =====================
+const player = new Player();
+
+// ===================== CASH ITEMS =====================
+const cashItems = [];
+for(let i=0;i<15;i++){
+  const mesh = box(0.4,0.4,0.05,0x00ff44);
+  mesh.position.set((Math.random()-0.5)*60, 0.3, (Math.random()-0.5)*80);
+  mesh.rotation.x = -Math.PI/2;
+  scene.add(mesh);
+  cashItems.push(mesh);
+}
+
+// ===================== PARTICLES =====================
+const particles = [];
+function spawnParticles(pos, color, n){
+  for(let i=0;i<n;i++){
+    const g = new THREE.SphereGeometry(0.1,3,3);
+    const m = new THREE.MeshBasicMaterial({color});
+    const mesh = new THREE.Mesh(g,m);
+    mesh.position.copy(pos);
+    const v = new THREE.Vector3((Math.random()-0.5)*6,(Math.random()+0.5)*5,(Math.random()-0.5)*6);
+    particles.push({mesh,vel:v,life:1.2});
+    scene.add(mesh);
+  }
+}
+
+// ===================== CAMERA =====================
+let camYaw = 0, camPitch = 0.3;
+let camDist = 8;
+const camTarget = new THREE.Vector3();
+
+// ===================== INPUT =====================
+const input = {
+  jx:0, jy:0,
+  jump:false, shoot:false, run:false,
+  gas:false, brake:false,
+  enter:false, camToggle:false
+};
+
+// Joystick
+const jBase = document.getElementById('joystick-base');
+const jKnob = document.getElementById('joystick-knob');
+const jZone = document.getElementById('joystick-zone');
+let jTouch=null, jCenter={x:45,y:45};
+
+jZone.addEventListener('touchstart',e=>{
+  e.preventDefault();
+  const t=e.changedTouches[0];
+  const r=jBase.getBoundingClientRect();
+  jCenter={x:r.left+r.width/2,y:r.top+r.height/2};
+  jTouch=t.identifier;
+},{passive:false});
+
+document.addEventListener('touchmove',e=>{
+  e.preventDefault();
+  for(let t of e.changedTouches){
+    if(t.identifier===jTouch){
+      const dx=t.clientX-jCenter.x;
+      const dy=t.clientY-jCenter.y;
+      const dist=Math.min(30,Math.sqrt(dx*dx+dy*dy));
+      const ang=Math.atan2(dy,dx);
+      const nx=Math.cos(ang)*dist, ny=Math.sin(ang)*dist;
+      jKnob.style.left=(26+nx)+'px';
+      jKnob.style.top=(26+ny)+'px';
+      input.jx=nx/30;
+      input.jy=ny/30;
+    }
+  }
+},{passive:false});
+
+document.addEventListener('touchend',e=>{
+  for(let t of e.changedTouches){
+    if(t.identifier===jTouch){
+      jTouch=null;
+      jKnob.style.left='26px'; jKnob.style.top='26px';
+      input.jx=0; input.jy=0;
+    }
+  }
+});
+
+// Camera look zone
+let lookTouch=null, lookLast={x:0,y:0};
+const lookZone=document.getElementById('look-zone');
+lookZone.addEventListener('touchstart',e=>{
+  e.preventDefault();
+  const t=e.changedTouches[0];
+  lookTouch=t.identifier;
+  lookLast={x:t.clientX,y:t.clientY};
+},{passive:false});
+document.addEventListener('touchmove',e=>{
+  for(let t of e.changedTouches){
+    if(t.identifier===lookTouch){
+      const dx=t.clientX-lookLast.x;
+      const dy=t.clientY-lookLast.y;
+      camYaw -= dx*0.006;
+      camPitch = Math.max(0.05, Math.min(0.7, camPitch+dy*0.004));
+      lookLast={x:t.clientX,y:t.clientY};
+    }
+  }
+});
+document.addEventListener('touchend',e=>{
+  for(let t of e.changedTouches){
+    if(t.identifier===lookTouch) lookTouch=null;
+  }
+});
+
+// Buttons
+function btn(id,onDown,onUp){
+  const el=document.getElementById(id);
+  const down=e=>{e.preventDefault();e.stopPropagation();if(onDown)onDown();};
+  const up=e=>{e.preventDefault();e.stopPropagation();if(onUp)onUp();};
+  el.addEventListener('touchstart',down,{passive:false});
+  el.addEventListener('touchend',up,{passive:false});
+  el.addEventListener('mousedown',down);
+  el.addEventListener('mouseup',up);
+}
+btn('btn-jump',()=>{input.jump=true;},()=>{});
+btn('btn-shoot',()=>{input.shoot=true;},()=>{input.shoot=false;});
+btn('btn-run',()=>{input.run=true;},()=>{input.run=false;});
+btn('btn-enter',()=>{input.enter=true;},()=>{input.enter=false;});
+btn('btn-cam',()=>{input.camToggle=true;},()=>{input.camToggle=false;});
+btn('btn-brake',()=>{input.brake=true;},()=>{input.brake=false;});
+
+// Keyboard
+document.addEventListener('keydown',e=>{
+  if(e.key==='w'||e.key==='ArrowUp') input.jy=-1;
+  if(e.key==='s'||e.key==='ArrowDown') input.jy=1;
+  if(e.key==='a'||e.key==='ArrowLeft') input.jx=-1;
+  if(e.key==='d'||e.key==='ArrowRight') input.jx=1;
+  if(e.key===' ') input.jump=true;
+  if(e.key==='f') input.enter=true;
+  if(e.key==='Shift') input.run=true;
+  if(e.key==='q') input.shoot=true;
+});
+document.addEventListener('keyup',e=>{
+  if(e.key==='w'||e.key==='ArrowUp'||e.key==='s'||e.key==='ArrowDown') input.jy=0;
+  if(e.key==='a'||e.key==='ArrowLeft'||e.key==='d'||e.key==='ArrowRight') input.jx=0;
+  if(e.key===' ') input.jump=false;
+  if(e.key==='f') input.enter=false;
+  if(e.key==='Shift') input.run=false;
+  if(e.key==='q') input.shoot=false;
+});
+
+// ===================== HUD =====================
+function updateHUD(){
+  document.getElementById('cash').textContent='$'+player.cash;
+  document.getElementById('hp-fill').style.width=player.hp+'%';
+  document.getElementById('hp-fill').style.background = player.hp>50?'linear-gradient(90deg,#e63,#f84)':player.hp>25?'linear-gradient(90deg,#fa0,#fc0)':'linear-gradient(90deg,#f00,#f44)';
+  for(let i=1;i<=5;i++){
+    const s=document.getElementById('s'+i);
+    if(s) s.className='star'+(i<=player.wanted?' on':'');
+  }
+}
+
+let msgTimer=null;
+function showMsg(txt,persist){
+  const el=document.getElementById('msg');
+  el.innerHTML=txt.replace('\n','<br>');
+  el.style.opacity=1;
+  if(msgTimer) clearTimeout(msgTimer);
+  if(!persist) msgTimer=setTimeout(()=>el.style.opacity=0,2500);
+}
+
+// ===================== MINIMAP =====================
+const mc=document.getElementById('mc');
+mc.width=100; mc.height=100;
+const mctx=mc.getContext('2d');
+function drawMinimap(){
+  const pp=player.inCar ? player.car.group.position : player.group.position;
+  mctx.clearRect(0,0,100,100);
+  mctx.fillStyle='#1a2a1a';
+  mctx.beginPath(); mctx.arc(50,50,50,0,Math.PI*2); mctx.fill();
+  const scale=0.7;
+  // Roads
+  mctx.strokeStyle='#444'; mctx.lineWidth=4;
+  mctx.beginPath(); mctx.moveTo(50,-200*scale+50); mctx.lineTo(50,200*scale+50); mctx.stroke();
+  mctx.beginPath(); mctx.moveTo(-200*scale+50,50); mctx.lineTo(200*scale+50,50); mctx.stroke();
+  // Cars
+  cars.forEach(c=>{
+    const cx=50+(c.group.position.x-pp.x)*scale;
+    const cy=50+(c.group.position.z-pp.z)*scale;
+    mctx.fillStyle='#f80';
+    mctx.fillRect(cx-2,cy-2,4,4);
   });
+  // Cash
+  cashItems.forEach(c=>{
+    if(!c) return;
+    const cx=50+(c.position.x-pp.x)*scale;
+    const cy=50+(c.position.z-pp.z)*scale;
+    mctx.fillStyle='#0f0';
+    mctx.fillRect(cx-1.5,cy-1.5,3,3);
+  });
+  // Player dot
+  mctx.fillStyle='#fff';
+  mctx.beginPath(); mctx.arc(50,50,3,0,Math.PI*2); mctx.fill();
+  // Circle clip mask
+  mctx.strokeStyle='rgba(255,255,255,0.3)'; mctx.lineWidth=2;
+  mctx.beginPath(); mctx.arc(50,50,49,0,Math.PI*2); mctx.stroke();
 }
 
-function onTimelineClick(e) {
-  const v = videos[activeSpeedVideo];
-  if (!v) return;
-  const bar = document.getElementById('tl-bar');
-  const rect = bar.getBoundingClientRect();
-  const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-  document.getElementById('playhead').style.left = (pct * 100) + '%';
-}
-
-// ============================================================
-// SEGMENTS
-// ============================================================
-function addSegment() {
-  const v = videos[activeSpeedVideo];
-  if (!v) { showToast('Сначала загрузите видео'); return; }
-  const dur = v.duration;
-  const segs = segments[activeSpeedVideo];
-  // Default: add at end or full if empty
-  let start = segs.length > 0 ? segs[segs.length - 1].end : 0;
-  let end = Math.min(start + Math.max(dur * 0.2, 2), dur);
-  if (start >= dur) start = Math.max(0, dur * 0.5);
-  if (start >= end) end = Math.min(start + 1, dur);
-  segs.push({ start: +start.toFixed(2), end: +end.toFixed(2), speed: 2 });
-  renderTimeline();
-  renderSegList();
-}
-
-function removeSegment(i) {
-  segments[activeSpeedVideo].splice(i, 1);
-  renderTimeline();
-  renderSegList();
-}
-
-function renderSegList() {
-  const v = videos[activeSpeedVideo];
-  const segs = segments[activeSpeedVideo];
-  const list = document.getElementById('seg-list');
-  const empty = document.getElementById('seg-empty');
-  list.innerHTML = '';
-
-  if (!v || segs.length === 0) {
-    empty.style.display = 'block';
+// ===================== ENTER/EXIT CAR =====================
+let enterCooldown=0;
+function tryEnterCar(){
+  if(player.inCar){
+    // Exit
+    player.inCar=false;
+    const c=player.car;
+    player.group.position.set(c.group.position.x+2.5, 0, c.group.position.z);
+    player.group.rotation.copy(c.group.rotation);
+    scene.add(player.group);
+    player.car=null;
+    showMsg('Вышел из машины');
     return;
   }
-  empty.style.display = 'none';
-
-  segs.forEach((seg, i) => {
-    const color = segColors[i % segColors.length];
-    const row = document.createElement('div');
-    row.className = 'seg-row';
-    row.innerHTML = `
-      <div class="seg-color" style="background:${color}"></div>
-      <div class="seg-info">
-        <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
-          <span style="font-size:11px;color:var(--muted);font-family:var(--mono)">Начало:</span>
-          <input type="number" step="0.1" min="0" max="${v.duration.toFixed(1)}"
-            value="${seg.start}" style="width:70px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 8px;font-family:var(--mono);font-size:12px"
-            onchange="updateSeg(${i},'start',this.value)">
-          <span style="font-size:11px;color:var(--muted);font-family:var(--mono)">Конец:</span>
-          <input type="number" step="0.1" min="0" max="${v.duration.toFixed(1)}"
-            value="${seg.end}" style="width:70px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 8px;font-family:var(--mono);font-size:12px"
-            onchange="updateSeg(${i},'end',this.value)">
-        </div>
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:11px;color:var(--muted)">Скорость:</span>
-          <div class="speed-slider-wrap">
-            <input type="range" min="0.25" max="8" step="0.05" value="${seg.speed}" 
-              class="${seg.speed < 1 ? 'range-accent' : ''}"
-              oninput="updateSeg(${i},'speed',this.value);this.nextElementSibling.textContent=parseFloat(this.value).toFixed(2)+'x'">
-            <span class="speed-val">${seg.speed.toFixed(2)}x</span>
-          </div>
-        </div>
-      </div>
-      <div class="del-btn" onclick="removeSegment(${i})">✕</div>
-    `;
-    list.appendChild(row);
+  // Find nearest car
+  let nearest=null, nearDist=4;
+  cars.forEach(c=>{
+    const d=player.group.position.distanceTo(c.group.position);
+    if(d<nearDist){nearDist=d;nearest=c;}
   });
-}
-
-function updateSeg(i, key, val) {
-  const v = videos[activeSpeedVideo];
-  const seg = segments[activeSpeedVideo][i];
-  const num = parseFloat(val);
-  if (isNaN(num)) return;
-  seg[key] = Math.max(0, Math.min(key === 'speed' ? 8 : v.duration, num));
-  if (key !== 'speed' && seg.start >= seg.end) {
-    if (key === 'start') seg.end = Math.min(seg.start + 0.5, v.duration);
-    else seg.start = Math.max(0, seg.end - 0.5);
+  if(nearest){
+    player.inCar=true;
+    player.car=nearest;
+    scene.remove(player.group);
+    showMsg('Едем! 🚗');
+    // Transfer wanted
+    nearest.speed=0;
+    camDist=12;
+  } else {
+    showMsg('Нет машины рядом...');
   }
-  renderTimeline();
 }
 
-// ============================================================
-// RENDER ENGINE (Web Workers + Canvas + OffscreenCanvas)
-// ============================================================
-async function startRender() {
-  const btn = document.getElementById('render-btn');
-  btn.disabled = true;
+// ===================== RESPAWN =====================
+function respawn(){
+  player.hp=100;
+  player.wanted=0;
+  player.dead=false;
+  if(player.inCar){
+    player.inCar=false;
+    scene.add(player.group);
+    player.car=null;
+  }
+  player.group.position.set(0,0,0);
+  player.vel.set(0,0,0);
+  updateHUD();
+  document.getElementById('msg').style.opacity=0;
+}
 
-  const videoList = mode === 'merge'
-    ? order.map(n => videos[n]).filter(Boolean)
-    : [videos[1]].filter(Boolean);
+// ===================== POLICE =====================
+let policeTimer=0;
+const police=[];
+function spawnPolice(){
+  if(police.length>=3) return;
+  const c=new Car(
+    player.inCar?player.car.group.position.x+10:player.group.position.x+15,
+    player.inCar?player.car.group.position.z:player.group.position.z,
+    0x2255cc, true
+  );
+  c.isPolice=true;
+  police.push(c);
+  cars.push(c);
+  showMsg('🚔 ПОЛИЦИЯ!');
+}
 
-  if (videoList.length === 0) { showToast('Нет видео для обработки'); btn.disabled = false; return; }
+// ===================== MAIN LOOP =====================
+let last=0;
+let enterPressed=false;
 
-  showProgress('Подготовка...');
+function animate(now){
+  requestAnimationFrame(animate);
+  const dt=Math.min((now-last)/1000, 0.05);
+  last=now;
 
-  try {
-    // Use MediaRecorder + Canvas approach for broad Safari/iPhone support
-    const allBlobs = [];
+  // Enter/exit car
+  if(input.enter && !enterPressed && enterCooldown<=0){
+    enterPressed=true;
+    enterCooldown=0.5;
+    tryEnterCar();
+  }
+  if(!input.enter) enterPressed=false;
+  enterCooldown-=dt;
 
-    for (let vi = 0; vi < videoList.length; vi++) {
-      const vidData = videoList[vi];
-      const vidNum = mode === 'merge' ? order[vi] : 1;
-      const segs = segments[vidNum] || [];
+  // Update player or driving
+  if(!player.inCar){
+    player.update(dt);
+  } else {
+    const c=player.car;
+    const gas=input.jy<-0.2;
+    const brk=input.jy>0.2||input.brake;
+    c.update(dt, gas, brk, input.jx, true);
+    player.group.position.copy(c.group.position);
 
-      updateProgress(vi / videoList.length * 50, `Обработка видео ${vi + 1}/${videoList.length}...`);
-      const blob = await processVideoWithSpeed(vidData, segs, (p) => {
-        updateProgress((vi / videoList.length + p / videoList.length) * 80, `Видео ${vi+1}: ${Math.round(p*100)}%`);
-      });
-      allBlobs.push(blob);
+    // Shoot from car
+    if(input.shoot && player.shootCooldown<=0){
+      player.shootCooldown=0.3;
+      const dir=new THREE.Vector3(0,0,1).applyQuaternion(c.group.quaternion);
+      spawnBullet(c.group.position.clone().add(new THREE.Vector3(0,1,0)), dir, false);
+      showFlash();
+      player.wanted=Math.min(5,player.wanted+1);
+      updateHUD();
     }
+    player.shootCooldown-=dt;
+  }
 
-    updateProgress(85, 'Склейка видео...');
-
-    let finalBlob;
-    if (allBlobs.length === 1) {
-      finalBlob = allBlobs[0];
+  // NPC cars
+  cars.forEach(c=>{
+    if(c===playerCar&&!player.inCar) return;
+    if(c===player.car) return;
+    if(c.isPolice&&police.includes(c)){
+      // Chase player
+      const pp=player.inCar?player.car.group.position:player.group.position;
+      const dx=pp.x-c.group.position.x;
+      const dz=pp.z-c.group.position.z;
+      const targetAng=Math.atan2(dx,dz);
+      const diff=((targetAng-c.group.rotation.y)+Math.PI*3)%(Math.PI*2)-Math.PI;
+      const steer=Math.max(-1,Math.min(1,diff*2));
+      c.update(dt,true,false,steer,false);
     } else {
-      finalBlob = await mergeBlobs(allBlobs, (p) => updateProgress(85 + p * 10, 'Склейка...'));
+      c.update(dt,true,false,0,false);
     }
+  });
 
-    updateProgress(100, 'Готово!');
-
-    const url = URL.createObjectURL(finalBlob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'videoforge_' + Date.now() + '.mp4';
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
-
-    showToast('✓ Видео скачано!');
-    hideProgress();
-  } catch(e) {
-    console.error(e);
-    showToast('Ошибка: ' + e.message);
-    hideProgress();
-  }
-  btn.disabled = false;
-}
-
-async function processVideoWithSpeed(vidData, segs, onProgress) {
-  return new Promise((resolve, reject) => {
-    const video = document.createElement('video');
-    video.src = vidData.url;
-    video.muted = false;
-    video.crossOrigin = 'anonymous';
-
-    video.onloadedmetadata = async () => {
-      const dur = video.duration;
-      const w = video.videoWidth || 1280;
-      const h = video.videoHeight || 720;
-
-      const canvas = document.createElement('canvas');
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext('2d');
-
-      // Sort and validate segments
-      const sorted = [...segs].sort((a, b) => a.start - b.start);
-
-      // Build timeline: array of {start, end, speed}
-      // Regions not covered by segments → speed 1.0
-      const timeline = buildTimeline(sorted, dur);
-
-      // Calculate output duration for progress
-      const outDur = timeline.reduce((acc, t) => acc + (t.end - t.start) / t.speed, 0);
-
-      // Collect chunks via MediaRecorder
-      let stream;
-      try {
-        stream = canvas.captureStream(30);
-      } catch(e) {
-        reject(new Error('captureStream не поддерживается'));
-        return;
-      }
-
-      // Add audio track if possible
-      let audioCtx, audioSource, gainNode, destNode;
-      try {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        audioSource = audioCtx.createMediaElementSource(video);
-        gainNode = audioCtx.createGain();
-        destNode = audioCtx.createMediaStreamDestination();
-        audioSource.connect(gainNode);
-        gainNode.connect(destNode);
-        gainNode.connect(audioCtx.destination);
-        stream.addTrack(destNode.stream.getAudioTracks()[0]);
-      } catch(e) {
-        // no audio, fine
-      }
-
-      const mimeType = getSupportedMime();
-      const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 8000000 });
-      const chunks = [];
-      recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
-      recorder.onstop = () => {
-        const blob = new Blob(chunks, { type: mimeType || 'video/webm' });
-        if (audioCtx) audioCtx.close();
-        resolve(blob);
-      };
-
-      recorder.start(100);
-
-      let outTime = 0;
-      let segIdx = 0;
-      const seg = timeline[segIdx];
-
-      video.pause();
-
-      const FPS = 30;
-      const frameDt = 1 / FPS;
-
-      // Process frame by frame
-      for (let i = 0; i < timeline.length; i++) {
-        const t = timeline[i];
-        const segDur = t.end - t.start;
-        const numFrames = Math.ceil(segDur / (t.speed * frameDt));
-
-        for (let f = 0; f < numFrames; f++) {
-          const srcTime = t.start + f * t.speed * frameDt;
-          if (srcTime >= t.end) break;
-
-          await seekTo(video, Math.min(srcTime, dur - 0.001));
-          ctx.drawImage(video, 0, 0, w, h);
-
-          if (audioCtx && gainNode) {
-            // Adjust playback rate to simulate speed on audio
-            video.playbackRate = t.speed;
+  // Bullets
+  for(let i=bullets.length-1;i>=0;i--){
+    const b=bullets[i];
+    b.mesh.position.addScaledVector(b.vel,dt);
+    b.life-=dt;
+    if(b.life<=0){scene.remove(b.mesh);bullets.splice(i,1);continue;}
+    // Hit cars
+    if(!b.fromNPC){
+      cars.forEach(c=>{
+        if(c===player.car) return;
+        if(b.mesh.position.distanceTo(c.group.position)<2.2){
+          c.hp-=20;
+          spawnParticles(b.mesh.position.clone(),0xff8800,5);
+          b.life=0;
+          if(c.hp<=0&&!c.onFire){
+            c.explode();
+            spawnParticles(c.group.position.clone(),0xff4400,20);
+            player.cash+=250;
+            updateHUD();
+            showMsg('💥 +$250');
           }
-
-          // Wait one frame time
-          await wait(frameDt * 1000 / t.speed);
-          onProgress((i / timeline.length) + (f / numFrames) / timeline.length);
         }
+      });
+    }
+    // Police bullets hit player
+    if(b.fromNPC){
+      const pp=player.inCar?player.car.group.position:player.group.position;
+      if(b.mesh.position.distanceTo(pp)<1.3){
+        player.damage(10);
+        spawnParticles(b.mesh.position.clone(),0xff0000,3);
+        b.life=0;
       }
-
-      recorder.stop();
-    };
-
-    video.onerror = () => reject(new Error('Ошибка загрузки видео'));
-    video.load();
-  });
-}
-
-function buildTimeline(segs, dur) {
-  const timeline = [];
-  let cursor = 0;
-  for (const seg of segs) {
-    const s = Math.max(cursor, seg.start);
-    const e = Math.min(dur, seg.end);
-    if (s > cursor) timeline.push({ start: cursor, end: s, speed: 1 });
-    if (e > s) timeline.push({ start: s, end: e, speed: seg.speed });
-    cursor = e;
+    }
   }
-  if (cursor < dur) timeline.push({ start: cursor, end: dur, speed: 1 });
-  return timeline;
-}
 
-function seekTo(video, time) {
-  return new Promise(res => {
-    video.currentTime = time;
-    video.onseeked = () => res();
+  // Police AI shooting
+  police.forEach(c=>{
+    if(!c.policeShoot) c.policeShoot=0;
+    c.policeShoot-=dt;
+    const pp=player.inCar?player.car.group.position:player.group.position;
+    if(c.group.position.distanceTo(pp)<15&&c.policeShoot<=0){
+      c.policeShoot=1.5;
+      const dir=pp.clone().sub(c.group.position).normalize();
+      dir.y=0;
+      // Spread
+      dir.x+=(Math.random()-0.5)*0.3;
+      dir.z+=(Math.random()-0.5)*0.3;
+      dir.normalize();
+      spawnBullet(c.group.position.clone().add(new THREE.Vector3(0,1,0)),dir,true);
+    }
   });
+
+  // Spawn police
+  policeTimer-=dt;
+  if(player.wanted>=3&&policeTimer<=0&&police.length<player.wanted){
+    policeTimer=8;
+    spawnPolice();
+  }
+  // Reduce wanted over time
+  if(player.wanted>0 && Date.now()%(10000)<50){
+    player.wanted=Math.max(0,player.wanted-1);
+    updateHUD();
+  }
+
+  // Particles
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];
+    p.vel.y-=15*dt;
+    p.mesh.position.addScaledVector(p.vel,dt);
+    p.life-=dt;
+    p.mesh.scale.setScalar(p.life*1.5);
+    if(p.life<=0){scene.remove(p.mesh);particles.splice(i,1);}
+  }
+
+  // Cash rotate
+  cashItems.forEach(c=>{if(c){c.rotation.z+=dt*2;}});
+
+  // Camera
+  const trackPos=player.inCar?player.car.group.position:player.group.position;
+  const trackRot=player.inCar?player.car.group.rotation.y:player.group.rotation.y;
+
+  camTarget.lerp(trackPos, 0.1);
+  const camOff=new THREE.Vector3(
+    Math.sin(camYaw)*camDist*Math.cos(camPitch),
+    camDist*Math.sin(camPitch)+1,
+    Math.cos(camYaw)*camDist*Math.cos(camPitch)
+  );
+  camera.position.lerp(camTarget.clone().add(camOff), 0.1);
+  camera.lookAt(camTarget.clone().add(new THREE.Vector3(0,1.5,0)));
+
+  drawMinimap();
+  renderer.render(scene, camera);
 }
 
-function wait(ms) {
-  return new Promise(res => setTimeout(res, Math.max(0, ms)));
-}
-
-async function mergeBlobs(blobs) {
-  // Simple sequential approach: just return blobs concatenated
-  // For proper merging we'd need FFmpeg.wasm — here we return a zip-like blob
-  // Since true MP4 merge in browser without FFmpeg needs complex work,
-  // we create a playlist and download them separately if > 1 video
-  if (blobs.length === 1) return blobs[0];
-  
-  // Try to merge via sequential canvas rendering
-  showToast('Склейка нескольких видео...');
-  return blobs[0]; // fallback: just first video if merge fails
-}
-
-function getSupportedMime() {
-  const types = [
-    'video/mp4;codecs=avc1',
-    'video/mp4',
-    'video/webm;codecs=vp9',
-    'video/webm;codecs=vp8',
-    'video/webm',
-  ];
-  for (const t of types) if (MediaRecorder.isTypeSupported(t)) return t;
-  return '';
-}
-
-// ============================================================
-// PROGRESS UI
-// ============================================================
-function showProgress(msg) {
-  const w = document.getElementById('progress-wrap');
-  w.classList.add('visible');
-  updateProgress(0, msg);
-}
-function updateProgress(pct, msg) {
-  document.getElementById('progress-bar').style.width = pct + '%';
-  document.getElementById('progress-label').textContent = msg;
-}
-function hideProgress() {
-  setTimeout(() => document.getElementById('progress-wrap').classList.remove('visible'), 1500);
-}
-
-// ============================================================
-// TOAST
-// ============================================================
-function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2500);
-}
+// ===================== START =====================
+showMsg('🎮 GTA Mobile\nJoystick = движение\nENTER = войти/выйти из машины\nSHOOT = стрелять', true);
+setTimeout(()=>document.getElementById('msg').style.opacity=0,4000);
+updateHUD();
+requestAnimationFrame(t=>{last=t;animate(t);});
 </script>
 
 </body>
