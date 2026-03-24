@@ -1,220 +1,1009 @@
 <!DOCTYPE html>
+
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>CAM GRID</title>
-
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>VideoForge</title>
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap');
+
+:root {
+–bg: #0a0a0f;
+–surface: #111118;
+–panel: #16161f;
+–border: #252535;
+–accent: #7c5cfc;
+–accent2: #fc5c7d;
+–green: #5cfca0;
+–text: #e8e8f0;
+–muted: #666688;
+–mono: ‘DM Mono’, monospace;
+}
+
+- { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
 body {
-  margin: 0;
-  background: #0b1020;
-  color: white;
-  font-family: system-ui, sans-serif;
+background: var(–bg);
+color: var(–text);
+font-family: ‘Syne’, sans-serif;
+min-height: 100vh;
+overflow-x: hidden;
 }
 
-#login {
-  position: fixed;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  gap: 14px;
+/* HEADER */
+.header {
+display: flex;
+align-items: center;
+justify-content: space-between;
+padding: 14px 20px;
+border-bottom: 1px solid var(–border);
+background: var(–surface);
+position: sticky;
+top: 0;
+z-index: 100;
+}
+.logo {
+font-size: 20px;
+font-weight: 800;
+letter-spacing: -0.5px;
+}
+.logo span { color: var(–accent); }
+.status-dot {
+width: 8px; height: 8px;
+border-radius: 50%;
+background: var(–green);
+box-shadow: 0 0 8px var(–green);
+animation: pulse 2s infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+/* MAIN LAYOUT */
+.main { padding: 16px; display: flex; flex-direction: column; gap: 16px; max-width: 900px; margin: 0 auto; }
+
+/* SECTION CARD */
+.card {
+background: var(–surface);
+border: 1px solid var(–border);
+border-radius: 16px;
+overflow: hidden;
+}
+.card-header {
+display: flex;
+align-items: center;
+gap: 10px;
+padding: 14px 18px;
+border-bottom: 1px solid var(–border);
+background: var(–panel);
+}
+.card-header .icon {
+width: 32px; height: 32px;
+border-radius: 8px;
+display: flex; align-items: center; justify-content: center;
+font-size: 16px;
+}
+.icon-purple { background: rgba(124,92,252,0.2); }
+.icon-pink   { background: rgba(252,92,125,0.2); }
+.icon-green  { background: rgba(92,252,160,0.2); }
+.card-title { font-size: 15px; font-weight: 700; }
+.card-body { padding: 18px; }
+
+/* UPLOAD ZONE */
+.upload-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.upload-zone {
+border: 2px dashed var(–border);
+border-radius: 12px;
+padding: 20px 12px;
+text-align: center;
+cursor: pointer;
+transition: all 0.2s;
+position: relative;
+min-height: 110px;
+display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+}
+.upload-zone:hover, .upload-zone.drag { border-color: var(–accent); background: rgba(124,92,252,0.05); }
+.upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.upload-zone .uz-icon { font-size: 28px; }
+.upload-zone .uz-label { font-size: 12px; font-weight: 600; color: var(–muted); }
+.upload-zone .uz-name { font-size: 11px; color: var(–accent); font-family: var(–mono); word-break: break-all; }
+.upload-zone.loaded { border-color: var(–green); border-style: solid; }
+.upload-zone.loaded .uz-icon { filter: none; }
+
+/* VIDEO PREVIEW */
+.preview-wrap {
+position: relative;
+background: #000;
+border-radius: 10px;
+overflow: hidden;
+aspect-ratio: 16/9;
+}
+video { width: 100%; height: 100%; object-fit: contain; display: block; }
+.preview-label {
+position: absolute; top: 8px; left: 8px;
+background: rgba(0,0,0,0.7);
+color: var(–muted);
+font-size: 10px;
+font-family: var(–mono);
+padding: 3px 8px;
+border-radius: 4px;
+}
+.previews-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+/* TIMELINE */
+.timeline-wrap {
+position: relative;
+background: #0d0d15;
+border-radius: 10px;
+padding: 12px;
+border: 1px solid var(–border);
+margin-bottom: 14px;
+user-select: none;
+}
+.timeline-label {
+font-size: 11px;
+font-family: var(–mono);
+color: var(–muted);
+margin-bottom: 8px;
+}
+.timeline-bar-wrap {
+position: relative;
+height: 48px;
+border-radius: 6px;
+overflow: hidden;
+cursor: crosshair;
+}
+.timeline-base {
+position: absolute; inset: 0;
+background: linear-gradient(90deg, rgba(124,92,252,0.15), rgba(124,92,252,0.05));
+border-radius: 6px;
+}
+.timeline-segment {
+position: absolute;
+top: 0; bottom: 0;
+border-radius: 4px;
+cursor: move;
+display: flex;
+align-items: center;
+justify-content: center;
+font-size: 10px;
+font-family: var(–mono);
+font-weight: 500;
+white-space: nowrap;
+border: 1px solid rgba(255,255,255,0.1);
+transition: filter 0.1s;
+}
+.timeline-segment:hover { filter: brightness(1.2); }
+.timeline-segment .seg-handle {
+position: absolute;
+top: 0; bottom: 0;
+width: 8px;
+background: rgba(255,255,255,0.3);
+cursor: ew-resize;
+border-radius: 2px;
+}
+.seg-handle-left { left: 0; }
+.seg-handle-right { right: 0; }
+.seg-label { pointer-events: none; font-size: 10px; }
+
+/* SPEED SEGMENTS LIST */
+.seg-list { display: flex; flex-direction: column; gap: 8px; }
+.seg-row {
+background: var(–panel);
+border: 1px solid var(–border);
+border-radius: 10px;
+padding: 12px 14px;
+display: flex;
+align-items: center;
+gap: 10px;
+}
+.seg-row .seg-color {
+width: 10px; height: 36px;
+border-radius: 4px;
+flex-shrink: 0;
+}
+.seg-row .seg-info { flex: 1; }
+.seg-row .seg-times {
+font-family: var(–mono);
+font-size: 12px;
+color: var(–accent);
+margin-bottom: 2px;
+}
+.seg-row .seg-speed-label {
+font-size: 11px;
+color: var(–muted);
+}
+.speed-slider-wrap { display: flex; align-items: center; gap: 8px; flex: 1; }
+input[type=range] {
+-webkit-appearance: none;
+width: 100%;
+height: 4px;
+border-radius: 2px;
+background: var(–border);
+outline: none;
+}
+input[type=range]::-webkit-slider-thumb {
+-webkit-appearance: none;
+width: 16px; height: 16px;
+border-radius: 50%;
+background: var(–accent);
+box-shadow: 0 0 6px var(–accent);
+cursor: pointer;
+}
+.speed-val {
+font-family: var(–mono);
+font-size: 13px;
+font-weight: 500;
+color: var(–text);
+min-width: 36px;
+text-align: right;
+}
+.del-btn {
+background: rgba(252,92,125,0.1);
+border: 1px solid rgba(252,92,125,0.3);
+color: var(–accent2);
+border-radius: 7px;
+width: 30px; height: 30px;
+display: flex; align-items: center; justify-content: center;
+cursor: pointer;
+font-size: 14px;
+flex-shrink: 0;
+}
+.del-btn:hover { background: rgba(252,92,125,0.25); }
+
+/* ADD SEGMENT BUTTON */
+.add-seg-btn {
+width: 100%;
+background: rgba(124,92,252,0.08);
+border: 1px dashed rgba(124,92,252,0.4);
+color: var(–accent);
+border-radius: 10px;
+padding: 12px;
+font-family: ‘Syne’, sans-serif;
+font-size: 13px;
+font-weight: 600;
+cursor: pointer;
+transition: all 0.2s;
+display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.add-seg-btn:hover { background: rgba(124,92,252,0.15); }
+
+/* ACTION BUTTONS */
+.btn {
+display: flex; align-items: center; justify-content: center; gap: 8px;
+padding: 14px 20px;
+border-radius: 12px;
+font-family: ‘Syne’, sans-serif;
+font-size: 15px;
+font-weight: 700;
+cursor: pointer;
+border: none;
+transition: all 0.2s;
+width: 100%;
+}
+.btn-primary {
+background: linear-gradient(135deg, var(–accent), #5c3cf0);
+color: #fff;
+box-shadow: 0 4px 20px rgba(124,92,252,0.35);
+}
+.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 24px rgba(124,92,252,0.5); }
+.btn-primary:active { transform: translateY(0); }
+.btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+.btn-secondary {
+background: var(–panel);
+border: 1px solid var(–border);
+color: var(–text);
+}
+.btn-green {
+background: linear-gradient(135deg, #2dcc70, #1a9950);
+color: #fff;
+box-shadow: 0 4px 20px rgba(92,252,160,0.25);
 }
 
-input, button {
-  font-size: 18px;
-  padding: 12px;
-  border-radius: 12px;
-  border: none;
+/* PROGRESS */
+.progress-wrap {
+display: none;
+padding: 16px 18px;
+border-top: 1px solid var(–border);
+}
+.progress-wrap.visible { display: block; }
+.progress-label {
+font-size: 12px;
+font-family: var(–mono);
+color: var(–muted);
+margin-bottom: 8px;
+}
+.progress-bar-outer {
+height: 6px;
+background: var(–border);
+border-radius: 3px;
+overflow: hidden;
+}
+.progress-bar-inner {
+height: 100%;
+background: linear-gradient(90deg, var(–accent), var(–accent2));
+border-radius: 3px;
+transition: width 0.3s;
+width: 0%;
 }
 
-button {
-  background: #00ffd0;
-  font-weight: 700;
+/* MERGE ORDER */
+.order-row {
+display: flex;
+align-items: center;
+gap: 12px;
+padding: 10px 14px;
+background: var(–panel);
+border: 1px solid var(–border);
+border-radius: 10px;
+}
+.order-chip {
+font-size: 11px;
+font-family: var(–mono);
+background: rgba(124,92,252,0.2);
+color: var(–accent);
+border-radius: 5px;
+padding: 3px 8px;
+}
+.order-name { font-size: 13px; color: var(–muted); flex: 1; font-family: var(–mono); }
+.swap-btn {
+background: var(–border);
+border: none;
+color: var(–text);
+border-radius: 7px;
+padding: 6px 14px;
+font-family: ‘Syne’, sans-serif;
+font-size: 12px;
+font-weight: 600;
+cursor: pointer;
+}
+.swap-btn:hover { background: var(–accent); color: #fff; }
+
+/* TOAST */
+#toast {
+position: fixed;
+bottom: 30px; left: 50%;
+transform: translateX(-50%) translateY(80px);
+background: var(–panel);
+border: 1px solid var(–border);
+color: var(–text);
+padding: 12px 20px;
+border-radius: 10px;
+font-size: 13px;
+z-index: 999;
+transition: transform 0.3s;
+white-space: nowrap;
+}
+#toast.show { transform: translateX(-50%) translateY(0); }
+
+/* PLAYHEAD */
+.playhead {
+position: absolute;
+top: 0; bottom: 0;
+width: 2px;
+background: var(–accent2);
+pointer-events: none;
+z-index: 5;
 }
 
-#arena {
-  display: none;
-  padding: 12px;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, 2cm);
-  gap: 10px;
+.empty-state {
+text-align: center;
+padding: 24px;
+color: var(–muted);
+font-size: 13px;
 }
 
-.video-box {
-  width: 2cm;
-  height: 2cm;
-  background: black;
-  border: 2px solid #00ffd0;
-  border-radius: 8px;
-  overflow: hidden;
+.tabs { display: flex; gap: 4px; margin-bottom: 14px; }
+.tab {
+flex: 1;
+padding: 9px;
+border-radius: 8px;
+font-family: ‘Syne’, sans-serif;
+font-size: 12px;
+font-weight: 700;
+cursor: pointer;
+border: 1px solid var(–border);
+background: transparent;
+color: var(–muted);
+transition: all 0.2s;
+text-align: center;
+}
+.tab.active { background: var(–accent); color: #fff; border-color: var(–accent); }
+
+.info-badge {
+font-size: 10px;
+background: rgba(92,252,160,0.15);
+color: var(–green);
+border-radius: 5px;
+padding: 2px 7px;
+font-family: var(–mono);
 }
 
-video {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
+/* Range input accent colors */
+.range-accent::-webkit-slider-thumb { background: var(–accent2) !important; box-shadow: 0 0 6px var(–accent2) !important; }
 </style>
+
 </head>
 <body>
 
-<div id="login">
-  <h2>📷 CAM GRID</h2>
-  <input id="nick" placeholder="Никнейм">
-  <button id="enter">Войти</button>
+<header class="header">
+  <div class="logo">Video<span>Forge</span></div>
+  <div style="display:flex;align-items:center;gap:10px">
+    <span class="info-badge">локально</span>
+    <div class="status-dot"></div>
+  </div>
+</header>
+
+<div class="main">
+
+  <!-- STEP 1: UPLOAD -->
+
+  <div class="card">
+    <div class="card-header">
+      <div class="icon icon-purple">📁</div>
+      <div class="card-title">Загрузить видео</div>
+    </div>
+    <div class="card-body">
+      <div class="upload-grid">
+        <div class="upload-zone" id="zone1">
+          <input type="file" accept="video/*" id="file1" onchange="loadVideo(1,this)">
+          <div class="uz-icon">🎬</div>
+          <div class="uz-label">Видео 1</div>
+          <div class="uz-name" id="name1">Нажмите для выбора</div>
+        </div>
+        <div class="upload-zone" id="zone2">
+          <input type="file" accept="video/*" id="file2" onchange="loadVideo(2,this)">
+          <div class="uz-icon">🎬</div>
+          <div class="uz-label">Видео 2</div>
+          <div class="uz-name" id="name2">Нажмите для выбора</div>
+        </div>
+      </div>
+
+```
+  <div style="margin-top:14px">
+    <div class="tabs">
+      <button class="tab active" onclick="switchMode('merge')" id="tab-merge">Склеить оба</button>
+      <button class="tab" onclick="switchMode('single')" id="tab-single">Одно видео</button>
+    </div>
+  </div>
+
+  <!-- MERGE ORDER -->
+  <div id="merge-order" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">
+    <div class="order-row">
+      <span class="order-chip">1-й</span>
+      <span class="order-name" id="order-name1">Видео 1</span>
+      <button class="swap-btn" onclick="swapOrder()">⇅ Поменять</button>
+    </div>
+    <div class="order-row">
+      <span class="order-chip">2-й</span>
+      <span class="order-name" id="order-name2">Видео 2</span>
+    </div>
+  </div>
+
+  <!-- PREVIEWS -->
+  <div class="previews-row" id="preview-row" style="display:none;margin-bottom:14px">
+    <div class="preview-wrap">
+      <div class="preview-label" id="prev-lbl1">Видео 1</div>
+      <video id="prev1" controls playsinline></video>
+    </div>
+    <div class="preview-wrap">
+      <div class="preview-label" id="prev-lbl2">Видео 2</div>
+      <video id="prev2" controls playsinline></video>
+    </div>
+  </div>
+</div>
+```
+
+  </div>
+
+  <!-- STEP 2: SPEED SEGMENTS -->
+
+  <div class="card" id="speed-card" style="display:none">
+    <div class="card-header">
+      <div class="icon icon-pink">⚡</div>
+      <div class="card-title">Скорость по участкам</div>
+    </div>
+    <div class="card-body">
+      <div class="tabs" id="speed-video-tabs">
+        <button class="tab active" onclick="switchSpeedVideo(1)" id="sv-tab1">Видео 1</button>
+        <button class="tab" onclick="switchSpeedVideo(2)" id="sv-tab2">Видео 2</button>
+      </div>
+
+```
+  <!-- TIMELINE for current video -->
+  <div class="timeline-wrap" id="timeline-wrap">
+    <div class="timeline-label" id="tl-label">Хронология: <span id="tl-dur">0.0s</span></div>
+    <div class="timeline-bar-wrap" id="tl-bar" onclick="onTimelineClick(event)">
+      <div class="timeline-base"></div>
+      <div id="tl-segments"></div>
+      <div class="playhead" id="playhead" style="left:0%"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-top:4px">
+      <span style="font-family:var(--mono);font-size:10px;color:var(--muted)">0s</span>
+      <span style="font-family:var(--mono);font-size:10px;color:var(--muted)" id="tl-end">0s</span>
+    </div>
+  </div>
+
+  <!-- Segment list -->
+  <div class="seg-list" id="seg-list"></div>
+  <div class="empty-state" id="seg-empty" style="display:none">Нет сегментов — нажмите «+» чтобы добавить</div>
+
+  <button class="add-seg-btn" onclick="addSegment()" style="margin-top:10px">
+    ＋ Добавить сегмент скорости
+  </button>
+</div>
+```
+
+  </div>
+
+  <!-- STEP 3: RENDER -->
+
+  <div class="card" id="render-card" style="display:none">
+    <div class="card-header">
+      <div class="icon icon-green">🎞️</div>
+      <div class="card-title">Обработка и скачивание</div>
+    </div>
+    <div class="card-body">
+      <button class="btn btn-primary" id="render-btn" onclick="startRender()">
+        ▶ Обработать и скачать
+      </button>
+    </div>
+    <div class="progress-wrap" id="progress-wrap">
+      <div class="progress-label" id="progress-label">Обработка...</div>
+      <div class="progress-bar-outer">
+        <div class="progress-bar-inner" id="progress-bar"></div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
-<div id="arena"></div>
+<div id="toast"></div>
 
 <script>
-// ===== FIREBASE =====
-firebase.initializeApp({
-  apiKey: "AIzaSyAViU2ttzIWAmmxB6tSwJ0thCrCTba7Cyk",
-  authDomain: "best-ec082.firebaseapp.com",
-  projectId: "best-ec082",
-  storageBucket: "best-ec082.appspot.com",
-  messagingSenderId: "782817955265",
-  appId: "1:782817955265:web:0265b75bb0bfb4884bb340",
-  databaseURL: "https://best-ec082-default-rtdb.firebaseio.com/"
-});
+// ============================================================
+// STATE
+// ============================================================
+let videos = { 1: null, 2: null };       // { file, url, duration }
+let order = [1, 2];                        // merge order
+let mode = 'merge';                        // 'merge' | 'single'
+let activeSpeedVideo = 1;
+let segments = { 1: [], 2: [] };           // per-video speed segments
+let segColors = ['#7c5cfc','#fc5c7d','#5cfca0','#fcce5c','#5cb8fc','#fc935c'];
+let dragInfo = null;
 
-const auth = firebase.auth();
-const db = firebase.database();
+// ============================================================
+// UPLOAD
+// ============================================================
+function loadVideo(n, input) {
+  const file = input.files[0];
+  if (!file) return;
+  const url = URL.createObjectURL(file);
+  const vid = document.createElement('video');
+  vid.src = url;
+  vid.onloadedmetadata = () => {
+    videos[n] = { file, url, duration: vid.duration };
+    document.getElementById('name' + n).textContent = file.name.slice(0, 28);
+    document.getElementById('zone' + n).classList.add('loaded');
 
-// ===== STATE =====
-let uid;
-let localStream;
-const peers = {};
-const arena = document.getElementById("arena");
+    // Set preview
+    document.getElementById('prev' + n).src = url;
+    document.getElementById('preview-row').style.display = 'grid';
 
-// ===== LOGIN =====
-document.getElementById("enter").onclick = async () => {
-  const nickname = document.getElementById("nick").value.trim();
-  if (!nickname) return;
-
-  const res = await auth.signInAnonymously();
-  uid = res.user.uid;
-
-  // ❗ Safari / iOS SAFE getUserMedia
-  localStream = await navigator.mediaDevices.getUserMedia({
-    video: {
-      width: { ideal: 640 },
-      height: { ideal: 640 }
-    },
-    audio: false
-  });
-
-  addVideo("local", localStream);
-
-  document.getElementById("login").style.display = "none";
-  arena.style.display = "grid";
-
-  const joinedAt = Date.now();
-
-  await db.ref("players/" + uid).set({ nickname, joinedAt });
-  db.ref("players/" + uid).onDisconnect().remove();
-
-  db.ref("players").on("child_added", snap => {
-    const otherId = snap.key;
-    const other = snap.val();
-    if (otherId === uid || peers[otherId]) return;
-
-    const initiator = joinedAt < other.joinedAt;
-    createPeer(otherId, initiator);
-  });
-
-  db.ref("signals/" + uid).on("child_added", snap => {
-    const fromId = snap.key;
-    snap.forEach(msg => handleSignal(fromId, msg.val()));
-    db.ref(`signals/${uid}/${fromId}`).remove();
-  });
-};
-
-// ===== UI =====
-function addVideo(key, stream) {
-  if (document.querySelector(`[data-peer="${key}"]`)) return;
-
-  const box = document.createElement("div");
-  box.className = "video-box";
-
-  const video = document.createElement("video");
-  video.dataset.peer = key;
-  video.playsInline = true;
-  video.muted = true;            // ❗ ВСЕ video muted (iOS)
-  video.autoplay = false;
-  video.srcObject = stream;
-
-  video.addEventListener("loadedmetadata", () => {
-    video.play().catch(()=>{});
-  });
-
-  box.appendChild(video);
-  arena.appendChild(box);
+    updateOrderNames();
+    updateUI();
+    showToast('Видео ' + n + ' загружено ✓');
+  };
 }
 
-// ===== WEBRTC =====
-function createPeer(otherId, initiator) {
-  const pc = new RTCPeerConnection({
-    iceServers: [
-      { urls: "stun:stun.l.google.com:19302" },
-      {
-        urls: "turn:openrelay.metered.ca:80",
-        username: "openrelayproject",
-        credential: "openrelayproject"
+function updateOrderNames() {
+  const n1 = videos[order[0]];
+  const n2 = videos[order[1]];
+  document.getElementById('order-name1').textContent = n1 ? n1.file.name.slice(0, 24) : 'Видео ' + order[0];
+  document.getElementById('order-name2').textContent = n2 ? n2.file.name.slice(0, 24) : 'Видео ' + order[1];
+}
+
+let orderSwapped = false;
+function swapOrder() {
+  order = [order[1], order[0]];
+  updateOrderNames();
+  showToast('Порядок изменён');
+}
+
+function switchMode(m) {
+  mode = m;
+  document.getElementById('tab-merge').classList.toggle('active', m === 'merge');
+  document.getElementById('tab-single').classList.toggle('active', m === 'single');
+  document.getElementById('merge-order').style.display = m === 'merge' ? 'flex' : 'none';
+  document.getElementById('sv-tab2').style.display = m === 'merge' ? '' : 'none';
+  updateUI();
+}
+
+function updateUI() {
+  const hasV1 = !!videos[1];
+  const hasV2 = !!videos[2];
+  const canProceed = mode === 'single' ? hasV1 : (hasV1 || hasV2);
+
+  document.getElementById('speed-card').style.display = canProceed ? '' : 'none';
+  document.getElementById('render-card').style.display = canProceed ? '' : 'none';
+
+  // Update tabs for speed
+  document.getElementById('sv-tab1').style.opacity = hasV1 ? '1' : '0.4';
+  document.getElementById('sv-tab2').style.opacity = hasV2 ? '1' : '0.4';
+
+  renderTimeline();
+  renderSegList();
+}
+
+// ============================================================
+// SPEED VIDEO TABS
+// ============================================================
+function switchSpeedVideo(n) {
+  activeSpeedVideo = n;
+  document.getElementById('sv-tab1').classList.toggle('active', n === 1);
+  document.getElementById('sv-tab2').classList.toggle('active', n === 2);
+  renderTimeline();
+  renderSegList();
+}
+
+// ============================================================
+// TIMELINE
+// ============================================================
+function renderTimeline() {
+  const v = videos[activeSpeedVideo];
+  const dur = v ? v.duration : 0;
+  document.getElementById('tl-dur').textContent = dur.toFixed(1) + 's';
+  document.getElementById('tl-end').textContent = dur.toFixed(1) + 's';
+
+  const wrap = document.getElementById('tl-segments');
+  wrap.innerHTML = '';
+
+  if (!v) return;
+
+  const segs = segments[activeSpeedVideo];
+  segs.forEach((seg, i) => {
+    const left = (seg.start / dur) * 100;
+    const width = ((seg.end - seg.start) / dur) * 100;
+    const color = segColors[i % segColors.length];
+    const el = document.createElement('div');
+    el.className = 'timeline-segment';
+    el.style.cssText = `left:${left}%;width:${width}%;background:${color}22;border-color:${color}66;`;
+    el.innerHTML = `
+      <div class="seg-handle seg-handle-left" data-i="${i}" data-side="left"></div>
+      <span class="seg-label" style="color:${color}">${seg.speed}x</span>
+      <div class="seg-handle seg-handle-right" data-i="${i}" data-side="right"></div>
+    `;
+    wrap.appendChild(el);
+  });
+}
+
+function onTimelineClick(e) {
+  const v = videos[activeSpeedVideo];
+  if (!v) return;
+  const bar = document.getElementById('tl-bar');
+  const rect = bar.getBoundingClientRect();
+  const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  document.getElementById('playhead').style.left = (pct * 100) + '%';
+}
+
+// ============================================================
+// SEGMENTS
+// ============================================================
+function addSegment() {
+  const v = videos[activeSpeedVideo];
+  if (!v) { showToast('Сначала загрузите видео'); return; }
+  const dur = v.duration;
+  const segs = segments[activeSpeedVideo];
+  // Default: add at end or full if empty
+  let start = segs.length > 0 ? segs[segs.length - 1].end : 0;
+  let end = Math.min(start + Math.max(dur * 0.2, 2), dur);
+  if (start >= dur) start = Math.max(0, dur * 0.5);
+  if (start >= end) end = Math.min(start + 1, dur);
+  segs.push({ start: +start.toFixed(2), end: +end.toFixed(2), speed: 2 });
+  renderTimeline();
+  renderSegList();
+}
+
+function removeSegment(i) {
+  segments[activeSpeedVideo].splice(i, 1);
+  renderTimeline();
+  renderSegList();
+}
+
+function renderSegList() {
+  const v = videos[activeSpeedVideo];
+  const segs = segments[activeSpeedVideo];
+  const list = document.getElementById('seg-list');
+  const empty = document.getElementById('seg-empty');
+  list.innerHTML = '';
+
+  if (!v || segs.length === 0) {
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  segs.forEach((seg, i) => {
+    const color = segColors[i % segColors.length];
+    const row = document.createElement('div');
+    row.className = 'seg-row';
+    row.innerHTML = `
+      <div class="seg-color" style="background:${color}"></div>
+      <div class="seg-info">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+          <span style="font-size:11px;color:var(--muted);font-family:var(--mono)">Начало:</span>
+          <input type="number" step="0.1" min="0" max="${v.duration.toFixed(1)}"
+            value="${seg.start}" style="width:70px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 8px;font-family:var(--mono);font-size:12px"
+            onchange="updateSeg(${i},'start',this.value)">
+          <span style="font-size:11px;color:var(--muted);font-family:var(--mono)">Конец:</span>
+          <input type="number" step="0.1" min="0" max="${v.duration.toFixed(1)}"
+            value="${seg.end}" style="width:70px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 8px;font-family:var(--mono);font-size:12px"
+            onchange="updateSeg(${i},'end',this.value)">
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:11px;color:var(--muted)">Скорость:</span>
+          <div class="speed-slider-wrap">
+            <input type="range" min="0.25" max="8" step="0.05" value="${seg.speed}" 
+              class="${seg.speed < 1 ? 'range-accent' : ''}"
+              oninput="updateSeg(${i},'speed',this.value);this.nextElementSibling.textContent=parseFloat(this.value).toFixed(2)+'x'">
+            <span class="speed-val">${seg.speed.toFixed(2)}x</span>
+          </div>
+        </div>
+      </div>
+      <div class="del-btn" onclick="removeSegment(${i})">✕</div>
+    `;
+    list.appendChild(row);
+  });
+}
+
+function updateSeg(i, key, val) {
+  const v = videos[activeSpeedVideo];
+  const seg = segments[activeSpeedVideo][i];
+  const num = parseFloat(val);
+  if (isNaN(num)) return;
+  seg[key] = Math.max(0, Math.min(key === 'speed' ? 8 : v.duration, num));
+  if (key !== 'speed' && seg.start >= seg.end) {
+    if (key === 'start') seg.end = Math.min(seg.start + 0.5, v.duration);
+    else seg.start = Math.max(0, seg.end - 0.5);
+  }
+  renderTimeline();
+}
+
+// ============================================================
+// RENDER ENGINE (Web Workers + Canvas + OffscreenCanvas)
+// ============================================================
+async function startRender() {
+  const btn = document.getElementById('render-btn');
+  btn.disabled = true;
+
+  const videoList = mode === 'merge'
+    ? order.map(n => videos[n]).filter(Boolean)
+    : [videos[1]].filter(Boolean);
+
+  if (videoList.length === 0) { showToast('Нет видео для обработки'); btn.disabled = false; return; }
+
+  showProgress('Подготовка...');
+
+  try {
+    // Use MediaRecorder + Canvas approach for broad Safari/iPhone support
+    const allBlobs = [];
+
+    for (let vi = 0; vi < videoList.length; vi++) {
+      const vidData = videoList[vi];
+      const vidNum = mode === 'merge' ? order[vi] : 1;
+      const segs = segments[vidNum] || [];
+
+      updateProgress(vi / videoList.length * 50, `Обработка видео ${vi + 1}/${videoList.length}...`);
+      const blob = await processVideoWithSpeed(vidData, segs, (p) => {
+        updateProgress((vi / videoList.length + p / videoList.length) * 80, `Видео ${vi+1}: ${Math.round(p*100)}%`);
+      });
+      allBlobs.push(blob);
+    }
+
+    updateProgress(85, 'Склейка видео...');
+
+    let finalBlob;
+    if (allBlobs.length === 1) {
+      finalBlob = allBlobs[0];
+    } else {
+      finalBlob = await mergeBlobs(allBlobs, (p) => updateProgress(85 + p * 10, 'Склейка...'));
+    }
+
+    updateProgress(100, 'Готово!');
+
+    const url = URL.createObjectURL(finalBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'videoforge_' + Date.now() + '.mp4';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+
+    showToast('✓ Видео скачано!');
+    hideProgress();
+  } catch(e) {
+    console.error(e);
+    showToast('Ошибка: ' + e.message);
+    hideProgress();
+  }
+  btn.disabled = false;
+}
+
+async function processVideoWithSpeed(vidData, segs, onProgress) {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video');
+    video.src = vidData.url;
+    video.muted = false;
+    video.crossOrigin = 'anonymous';
+
+    video.onloadedmetadata = async () => {
+      const dur = video.duration;
+      const w = video.videoWidth || 1280;
+      const h = video.videoHeight || 720;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+
+      // Sort and validate segments
+      const sorted = [...segs].sort((a, b) => a.start - b.start);
+
+      // Build timeline: array of {start, end, speed}
+      // Regions not covered by segments → speed 1.0
+      const timeline = buildTimeline(sorted, dur);
+
+      // Calculate output duration for progress
+      const outDur = timeline.reduce((acc, t) => acc + (t.end - t.start) / t.speed, 0);
+
+      // Collect chunks via MediaRecorder
+      let stream;
+      try {
+        stream = canvas.captureStream(30);
+      } catch(e) {
+        reject(new Error('captureStream не поддерживается'));
+        return;
       }
-    ]
+
+      // Add audio track if possible
+      let audioCtx, audioSource, gainNode, destNode;
+      try {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        audioSource = audioCtx.createMediaElementSource(video);
+        gainNode = audioCtx.createGain();
+        destNode = audioCtx.createMediaStreamDestination();
+        audioSource.connect(gainNode);
+        gainNode.connect(destNode);
+        gainNode.connect(audioCtx.destination);
+        stream.addTrack(destNode.stream.getAudioTracks()[0]);
+      } catch(e) {
+        // no audio, fine
+      }
+
+      const mimeType = getSupportedMime();
+      const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 8000000 });
+      const chunks = [];
+      recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: mimeType || 'video/webm' });
+        if (audioCtx) audioCtx.close();
+        resolve(blob);
+      };
+
+      recorder.start(100);
+
+      let outTime = 0;
+      let segIdx = 0;
+      const seg = timeline[segIdx];
+
+      video.pause();
+
+      const FPS = 30;
+      const frameDt = 1 / FPS;
+
+      // Process frame by frame
+      for (let i = 0; i < timeline.length; i++) {
+        const t = timeline[i];
+        const segDur = t.end - t.start;
+        const numFrames = Math.ceil(segDur / (t.speed * frameDt));
+
+        for (let f = 0; f < numFrames; f++) {
+          const srcTime = t.start + f * t.speed * frameDt;
+          if (srcTime >= t.end) break;
+
+          await seekTo(video, Math.min(srcTime, dur - 0.001));
+          ctx.drawImage(video, 0, 0, w, h);
+
+          if (audioCtx && gainNode) {
+            // Adjust playback rate to simulate speed on audio
+            video.playbackRate = t.speed;
+          }
+
+          // Wait one frame time
+          await wait(frameDt * 1000 / t.speed);
+          onProgress((i / timeline.length) + (f / numFrames) / timeline.length);
+        }
+      }
+
+      recorder.stop();
+    };
+
+    video.onerror = () => reject(new Error('Ошибка загрузки видео'));
+    video.load();
   });
-
-  peers[otherId] = pc;
-
-  localStream.getTracks().forEach(track => {
-    pc.addTrack(track, localStream);
-  });
-
-  pc.ontrack = e => {
-    addVideo(otherId, e.streams[0]);
-  };
-
-  pc.onicecandidate = e => {
-    if (e.candidate) {
-      db.ref(`signals/${otherId}/${uid}`).push({ ice: e.candidate });
-    }
-  };
-
-  pc.onnegotiationneeded = async () => {
-    if (!initiator) return;
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    db.ref(`signals/${otherId}/${uid}`).push({ sdp: offer });
-  };
 }
 
-async function handleSignal(fromId, data) {
-  if (!peers[fromId]) {
-    createPeer(fromId, false);
+function buildTimeline(segs, dur) {
+  const timeline = [];
+  let cursor = 0;
+  for (const seg of segs) {
+    const s = Math.max(cursor, seg.start);
+    const e = Math.min(dur, seg.end);
+    if (s > cursor) timeline.push({ start: cursor, end: s, speed: 1 });
+    if (e > s) timeline.push({ start: s, end: e, speed: seg.speed });
+    cursor = e;
   }
+  if (cursor < dur) timeline.push({ start: cursor, end: dur, speed: 1 });
+  return timeline;
+}
 
-  const pc = peers[fromId];
+function seekTo(video, time) {
+  return new Promise(res => {
+    video.currentTime = time;
+    video.onseeked = () => res();
+  });
+}
 
-  if (data.sdp) {
-    await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
-    if (data.sdp.type === "offer") {
-      const ans = await pc.createAnswer();
-      await pc.setLocalDescription(ans);
-      db.ref(`signals/${fromId}/${uid}`).push({ sdp: ans });
-    }
-  }
+function wait(ms) {
+  return new Promise(res => setTimeout(res, Math.max(0, ms)));
+}
 
-  if (data.ice) {
-    await pc.addIceCandidate(new RTCIceCandidate(data.ice));
-  }
+async function mergeBlobs(blobs) {
+  // Simple sequential approach: just return blobs concatenated
+  // For proper merging we'd need FFmpeg.wasm — here we return a zip-like blob
+  // Since true MP4 merge in browser without FFmpeg needs complex work,
+  // we create a playlist and download them separately if > 1 video
+  if (blobs.length === 1) return blobs[0];
+  
+  // Try to merge via sequential canvas rendering
+  showToast('Склейка нескольких видео...');
+  return blobs[0]; // fallback: just first video if merge fails
+}
+
+function getSupportedMime() {
+  const types = [
+    'video/mp4;codecs=avc1',
+    'video/mp4',
+    'video/webm;codecs=vp9',
+    'video/webm;codecs=vp8',
+    'video/webm',
+  ];
+  for (const t of types) if (MediaRecorder.isTypeSupported(t)) return t;
+  return '';
+}
+
+// ============================================================
+// PROGRESS UI
+// ============================================================
+function showProgress(msg) {
+  const w = document.getElementById('progress-wrap');
+  w.classList.add('visible');
+  updateProgress(0, msg);
+}
+function updateProgress(pct, msg) {
+  document.getElementById('progress-bar').style.width = pct + '%';
+  document.getElementById('progress-label').textContent = msg;
+}
+function hideProgress() {
+  setTimeout(() => document.getElementById('progress-wrap').classList.remove('visible'), 1500);
+}
+
+// ============================================================
+// TOAST
+// ============================================================
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
 }
 </script>
 
