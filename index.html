@@ -3,692 +3,436 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>T-800 // SKYNET</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Tactics</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
-
-- { margin: 0; padding: 0; box-sizing: border-box; }
-
-body {
-background: #000;
-overflow: hidden;
-font-family: ‘Share Tech Mono’, monospace;
-color: #ff2200;
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#000;overflow:hidden;width:100vw;height:100vh;font-family:monospace;}
+#c{display:block;touch-action:none;}
+#hud{
+  position:fixed;bottom:0;left:0;right:0;height:80px;
+  background:rgba(8,10,6,0.95);border-top:2px solid #3a4a20;
+  display:flex;align-items:center;padding:6px 8px;gap:6px;
+  overflow-x:auto;z-index:20;
 }
-
-#canvas-container {
-position: relative;
-width: 100vw;
-height: 100vh;
+.slot{
+  flex-shrink:0;width:60px;height:60px;border:2px solid #444;
+  border-radius:5px;background:#111a08;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;
+  justify-content:center;position:relative;overflow:hidden;
 }
-
-canvas { display: block; }
-
-.hud {
-position: absolute;
-top: 0; left: 0; right: 0; bottom: 0;
-pointer-events: none;
+.slot.sel{border-color:#00ff88;box-shadow:0 0 10px #00ff8855;}
+.slot canvas{width:48px;height:48px;pointer-events:none;}
+.slot .lbl{position:absolute;bottom:1px;font-size:7px;color:#888;pointer-events:none;}
+#btnAll{
+  flex-shrink:0;width:52px;height:60px;border:2px solid #665;
+  border-radius:5px;background:#1a1a08;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;
+  justify-content:center;color:#cc9;font-size:9px;text-align:center;
+  line-height:1.3;gap:2px;
 }
-
-.corner {
-position: absolute;
-width: 60px; height: 60px;
-border-color: #ff2200;
-border-style: solid;
-opacity: 0.7;
-}
-.corner.tl { top: 20px; left: 20px; border-width: 2px 0 0 2px; }
-.corner.tr { top: 20px; right: 20px; border-width: 2px 2px 0 0; }
-.corner.bl { bottom: 20px; left: 20px; border-width: 0 0 2px 2px; }
-.corner.br { bottom: 20px; right: 20px; border-width: 0 2px 2px 0; }
-
-.title {
-position: absolute;
-top: 30px;
-left: 50%;
-transform: translateX(-50%);
-font-family: ‘Orbitron’, monospace;
-font-size: 13px;
-font-weight: 900;
-letter-spacing: 8px;
-color: #ff2200;
-text-shadow: 0 0 20px #ff2200, 0 0 40px #ff220066;
-animation: flicker 4s infinite;
-}
-
-.model-id {
-position: absolute;
-top: 55px;
-left: 50%;
-transform: translateX(-50%);
-font-size: 9px;
-letter-spacing: 4px;
-color: #ff220088;
-}
-
-.stats {
-position: absolute;
-bottom: 40px;
-left: 40px;
-font-size: 10px;
-line-height: 1.8;
-color: #ff220099;
-}
-
-.stats span { color: #ff2200; }
-
-.scan-line {
-position: absolute;
-left: 0; right: 0;
-height: 2px;
-background: linear-gradient(90deg, transparent, #ff220033, #ff2200, #ff220033, transparent);
-animation: scan 3s linear infinite;
-opacity: 0.4;
-}
-
-.controls-hint {
-position: absolute;
-bottom: 40px;
-right: 40px;
-font-size: 9px;
-line-height: 2;
-color: #ff220066;
-text-align: right;
-}
-
-.target-reticle {
-position: absolute;
-top: 50%;
-left: 50%;
-transform: translate(-50%, -50%);
-width: 200px;
-height: 200px;
-border: 1px solid #ff220022;
-border-radius: 50%;
-animation: rotate 8s linear infinite;
-}
-
-.target-reticle::before {
-content: ‘’;
-position: absolute;
-top: 50%; left: -20px; right: -20px;
-height: 1px;
-background: linear-gradient(90deg, transparent, #ff220033, transparent);
-}
-.target-reticle::after {
-content: ‘’;
-position: absolute;
-left: 50%; top: -20px; bottom: -20px;
-width: 1px;
-background: linear-gradient(180deg, transparent, #ff220033, transparent);
-}
-
-.glitch-text {
-position: absolute;
-top: 50%;
-left: 50%;
-transform: translate(-50%, 120px);
-font-size: 8px;
-letter-spacing: 3px;
-color: #ff220055;
-animation: glitch 5s infinite;
-}
-
-@keyframes scan {
-0% { top: -2px; }
-100% { top: 100%; }
-}
-
-@keyframes flicker {
-0%, 95%, 100% { opacity: 1; }
-96% { opacity: 0.4; }
-97% { opacity: 1; }
-98% { opacity: 0.2; }
-99% { opacity: 1; }
-}
-
-@keyframes rotate {
-from { transform: translate(-50%, -50%) rotate(0deg); }
-to { transform: translate(-50%, -50%) rotate(360deg); }
-}
-
-@keyframes glitch {
-0%, 90%, 100% { opacity: 0.4; transform: translate(-50%, 120px); }
-91% { transform: translate(-48%, 120px); color: #ff6600; }
-92% { transform: translate(-52%, 120px); }
-93% { transform: translate(-50%, 120px); opacity: 0.8; }
+#btnNone{
+  flex-shrink:0;width:52px;height:60px;border:2px solid #555;
+  border-radius:5px;background:#111108;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;
+  justify-content:center;color:#998;font-size:9px;text-align:center;
+  line-height:1.3;gap:2px;
 }
 </style>
-
 </head>
 <body>
-<div id="canvas-container">
-  <canvas id="c"></canvas>
-  <div class="hud">
-    <div class="scan-line"></div>
-    <div class="corner tl"></div>
-    <div class="corner tr"></div>
-    <div class="corner bl"></div>
-    <div class="corner br"></div>
-    <div class="title">CYBERDYNE SYSTEMS</div>
-    <div class="model-id">SERIES 800 // MODEL 101 // INFILTRATOR UNIT</div>
-    <div class="target-reticle"></div>
-    <div class="glitch-text">THREAT ASSESSMENT: ACTIVE</div>
-    <div class="stats">
-      <div>UNIT: <span>T-800</span></div>
-      <div>STATUS: <span>OPERATIONAL</span></div>
-      <div>CPU: <span>NEURAL NET PROCESSOR</span></div>
-      <div>POWER: <span>IRIDIUM / NUCLEAR</span></div>
-      <div>CHASSIS: <span>HYPERALLOY COMBAT</span></div>
-    </div>
-    <div class="controls-hint">
-      DRAG — ROTATE<br>
-      SCROLL — ZOOM<br>
-      AUTO-ROTATE: ON
-    </div>
-  </div>
+<canvas id="c"></canvas>
+<div id="hud">
+  <button id="btnAll">ALL<br>✅</button>
+  <button id="btnNone">NONE<br>❌</button>
+  <div id="slots" style="display:flex;gap:6px;align-items:center;"></div>
 </div>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-
 <script>
-const canvas = document.getElementById('c');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
-renderer.setPixelRatio(window.devicePixelRatio);
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.toneMapping = THREE.ReinhardToneMapping;
-renderer.toneMappingExposure = 1.5;
+const cv=document.getElementById('c');
+const cx=cv.getContext('2d');
+const HUD=80;
+function resize(){cv.width=window.innerWidth;cv.height=window.innerHeight-HUD;}
+resize();window.addEventListener('resize',resize);
 
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x000000);
-scene.fog = new THREE.FogExp2(0x000000, 0.015);
+// MAP
+const CELL=36,MW=52,MH=42;
+const PW=MW*CELL,PH=MH*CELL;
+const T=[];
+for(let y=0;y<MH;y++){T[y]=[];for(let x=0;x<MW;x++)T[y][x]=0;}
+function rect(x,y,w,h,v){for(let dy=0;dy<h;dy++)for(let dx=0;dx<w;dx++){const ny=y+dy,nx=x+dx;if(ny>=0&&ny<MH&&nx>=0&&nx<MW)T[ny][nx]=v;}}
+function circ(cx2,cy2,r,v){for(let y=cy2-r;y<=cy2+r;y++)for(let x=cx2-r;x<=cx2+r;x++)if(y>=0&&y<MH&&x>=0&&x<MW&&(x-cx2)**2+(y-cy2)**2<=r*r)T[y][x]=v;}
+rect(1,1,7,4,1);rect(20,18,6,4,1);rect(38,4,6,5,1);rect(44,28,6,5,1);rect(4,34,5,5,1);
+circ(10,8,3,2);circ(30,12,2,2);circ(44,20,3,2);circ(18,32,2,2);circ(48,10,2,2);circ(32,38,2,2);
+rect(16,4,1,10,3);rect(16,4,8,1,3);rect(26,10,1,8,3);rect(26,10,8,1,3);rect(34,10,1,8,3);
+rect(8,22,1,8,3);rect(8,22,7,1,3);rect(8,29,7,1,3);
+rect(38,24,8,1,3);rect(38,24,1,6,3);rect(38,30,8,1,3);
+rect(20,15,3,2,4);rect(35,32,3,3,4);rect(48,36,3,2,4);rect(12,12,2,3,4);
+circ(24,4,3,5);circ(46,33,3,5);circ(2,16,3,5);circ(36,42,3,5);circ(12,40,2,5);
 
-const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
-camera.position.set(0, 2, 8);
-camera.lookAt(0, 1, 0);
-
-// Materials
-const metalMat = new THREE.MeshStandardMaterial({
-  color: 0x888888,
-  metalness: 0.95,
-  roughness: 0.1,
-  envMapIntensity: 1.0,
-});
-
-const darkMetalMat = new THREE.MeshStandardMaterial({
-  color: 0x333333,
-  metalness: 0.95,
-  roughness: 0.15,
-});
-
-const eyeMat = new THREE.MeshStandardMaterial({
-  color: 0xff0000,
-  emissive: 0xff1100,
-  emissiveIntensity: 3,
-  metalness: 0.2,
-  roughness: 0.1,
-});
-
-const teethMat = new THREE.MeshStandardMaterial({
-  color: 0xcccccc,
-  metalness: 0.9,
-  roughness: 0.05,
-});
-
-const darkJointMat = new THREE.MeshStandardMaterial({
-  color: 0x222222,
-  metalness: 0.8,
-  roughness: 0.3,
-});
-
-// Group
-const terminator = new THREE.Group();
-
-// === HEAD ===
-const headGroup = new THREE.Group();
-headGroup.position.y = 3.8;
-
-// Skull base
-const skullGeo = new THREE.SphereGeometry(0.52, 16, 12);
-const skull = new THREE.Mesh(skullGeo, metalMat);
-skull.scale.set(1, 1.1, 0.95);
-headGroup.add(skull);
-
-// Forehead plate
-const foreheadGeo = new THREE.BoxGeometry(0.9, 0.25, 0.15);
-const forehead = new THREE.Mesh(foreheadGeo, darkMetalMat);
-forehead.position.set(0, 0.3, 0.42);
-headGroup.add(forehead);
-
-// Cheekbones
-[-0.38, 0.38].forEach(x => {
-  const cbGeo = new THREE.BoxGeometry(0.22, 0.18, 0.2);
-  const cb = new THREE.Mesh(cbGeo, darkMetalMat);
-  cb.position.set(x, 0.05, 0.38);
-  headGroup.add(cb);
-});
-
-// Eye sockets
-[-0.22, 0.22].forEach((x, i) => {
-  const socketGeo = new THREE.CylinderGeometry(0.1, 0.12, 0.08, 12);
-  const socket = new THREE.Mesh(socketGeo, darkJointMat);
-  socket.rotation.x = Math.PI / 2;
-  socket.position.set(x, 0.1, 0.46);
-  headGroup.add(socket);
-
-  // Eye glow
-  const eyeGeo = new THREE.SphereGeometry(0.07, 12, 8);
-  const eye = new THREE.Mesh(eyeGeo, eyeMat);
-  eye.position.set(x, 0.1, 0.5);
-  headGroup.add(eye);
-
-  // Eye light
-  const eyeLight = new THREE.PointLight(0xff1100, 2, 1.5);
-  eyeLight.position.set(x, 0.1, 0.52);
-  headGroup.add(eyeLight);
-});
-
-// Nose ridge
-const noseGeo = new THREE.BoxGeometry(0.08, 0.2, 0.12);
-const nose = new THREE.Mesh(noseGeo, metalMat);
-nose.position.set(0, -0.05, 0.5);
-headGroup.add(nose);
-
-// Jaw / lower face
-const jawGeo = new THREE.BoxGeometry(0.78, 0.25, 0.7);
-const jaw = new THREE.Mesh(jawGeo, metalMat);
-jaw.position.set(0, -0.28, 0.05);
-headGroup.add(jaw);
-
-// Exposed teeth
-for (let i = -3; i <= 3; i++) {
-  const toothGeo = new THREE.BoxGeometry(0.07, 0.12, 0.06);
-  const tooth = new THREE.Mesh(toothGeo, teethMat);
-  tooth.position.set(i * 0.1, -0.3, 0.38);
-  headGroup.add(tooth);
+function passable(gx,gy){
+if(gx<0||gy<0||gx>=MW||gy>=MH)return false;
+return T[gy][gx]!==1&&T[gy][gx]!==2&&T[gy][gx]!==3;
 }
 
-// Chin
-const chinGeo = new THREE.BoxGeometry(0.5, 0.1, 0.4);
-const chin = new THREE.Mesh(chinGeo, darkMetalMat);
-chin.position.set(0, -0.42, 0.08);
-headGroup.add(chin);
-
-// Temple details
-[-0.5, 0.5].forEach(x => {
-  const tGeo = new THREE.BoxGeometry(0.08, 0.3, 0.4);
-  const t = new THREE.Mesh(tGeo, darkMetalMat);
-  t.position.set(x, 0.1, 0.0);
-  headGroup.add(t);
-});
-
-// Neck
-const neckGeo = new THREE.CylinderGeometry(0.18, 0.22, 0.5, 10);
-const neck = new THREE.Mesh(neckGeo, darkMetalMat);
-neck.position.y = -0.65;
-headGroup.add(neck);
-
-// Neck joints/pistons
-for (let a = 0; a < 4; a++) {
-  const angle = (a / 4) * Math.PI * 2;
-  const pistonGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.4, 6);
-  const piston = new THREE.Mesh(pistonGeo, metalMat);
-  piston.position.set(Math.cos(angle) * 0.26, -0.6, Math.sin(angle) * 0.26);
-  headGroup.add(piston);
+// BAKE MAP
+const mc=document.createElement(‘canvas’);mc.width=PW;mc.height=PH;
+const mx=mc.getContext(‘2d’);
+function rng(s){return((Math.sin(s)*43758.5453)%1+1)%1;}
+for(let y=0;y<MH;y++){
+for(let x=0;x<MW;x++){
+const t=T[y][x],px=x*CELL,py=y*CELL,n=rng(x*73+y*137);
+const cols=[[78,110,46],[30,74,114],[122,114,96],[138,120,88],[106,88,64],[46,90,30]];
+const darks=[[58,85,32],[22,56,88],[90,84,72],[106,90,58],[74,58,40],[30,64,16]];
+const b=cols[t],d=darks[t];
+mx.fillStyle=`rgb(${Math.round(b[0]+(d[0]-b[0])*n)},${Math.round(b[1]+(d[1]-b[1])*n)},${Math.round(b[2]+(d[2]-b[2])*n)})`;
+mx.fillRect(px,py,CELL,CELL);
+if(t===0){mx.fillStyle=‘rgba(0,0,0,0.1)’;for(let i=0;i<4;i++)mx.fillRect(px+rng(x+i*7+y)*CELL,py+rng(x+y*3+i)*CELL,2,1);}
+if(t===1){mx.fillStyle=‘rgba(120,200,255,0.2)’;mx.fillRect(px,py+Math.floor(n*CELL*0.7),CELL,2);}
+if(t===2){mx.strokeStyle=‘rgba(0,0,0,0.5)’;mx.lineWidth=1;mx.beginPath();mx.moveTo(px+4,py+n*CELL);mx.lineTo(px+CELL-4,py+(1-n)*CELL);mx.stroke();mx.fillStyle=‘rgba(255,255,255,0.12)’;mx.fillRect(px,py,CELL,3);}
+if(t===3){mx.strokeStyle=‘rgba(0,0,0,0.55)’;mx.lineWidth=1;const row=y%2;for(let i=0;i<2;i++)mx.strokeRect(px+(row?CELL/2:0)+i*(CELL/2),py,CELL/2,CELL);mx.fillStyle=‘rgba(255,255,255,0.1)’;mx.fillRect(px,py,CELL,3);mx.fillStyle=‘rgba(0,0,0,0.2)’;mx.fillRect(px,py+CELL-4,CELL,4);}
+if(t===4){mx.fillStyle=‘rgba(0,0,0,0.3)’;for(let i=0;i<6;i++)mx.fillRect(px+rng(x+i)*CELL,py+rng(y+i*3)*CELL,3+i%3,2+i%2);}
+if(t===5){mx.fillStyle=’#1a4010’;mx.beginPath();mx.arc(px+CELL/2,py+CELL/2,CELL*0.42,0,Math.PI*2);mx.fill();mx.fillStyle=’#2a6020’;mx.beginPath();mx.arc(px+CELL*0.35,py+CELL*0.4,CELL*0.25,0,Math.PI*2);mx.fill();}
+if(!passable(x,y)){mx.fillStyle=‘rgba(200,40,0,0.18)’;mx.fillRect(px,py,CELL,CELL);mx.strokeStyle=‘rgba(180,30,0,0.75)’;mx.lineWidth=2;mx.strokeRect(px+1,py+1,CELL-2,CELL-2);}
+}
 }
 
-terminator.add(headGroup);
+// ── CLEARANCE MAP ─────────────────────────────────────────
+// clearance[y][x] = how many cells away from nearest wall/impassable
+const CLR=[];
+for(let y=0;y<MH;y++){CLR[y]=[];for(let x=0;x<MW;x++)CLR[y][x]=0;}
+(function buildClearance(){
+for(let y=0;y<MH;y++)for(let x=0;x<MW;x++){
+if(!passable(x,y)){CLR[y][x]=0;continue;}
+let c=1;
+outer:for(;;){
+for(let dy=-c;dy<=c;dy++)for(let dx=-c;dx<=c;dx++){
+if(Math.abs(dx)!==c&&Math.abs(dy)!==c)continue;
+if(!passable(x+dx,y+dy)){break outer;}
+}
+c++;if(c>8)break;
+}
+CLR[y][x]=c;
+}
+})();
 
-// === TORSO ===
-const torsoGroup = new THREE.Group();
-torsoGroup.position.y = 1.8;
+// cells/px per unit size in grid units (half-size in cells, ceiling)
+function unitClearanceNeeded(u){return Math.ceil(u.size/CELL)+1;}
 
-// Main chest
-const chestGeo = new THREE.BoxGeometry(1.6, 1.5, 0.75);
-const chest = new THREE.Mesh(chestGeo, metalMat);
-torsoGroup.add(chest);
-
-// Chest plate
-const cplateGeo = new THREE.BoxGeometry(1.3, 1.1, 0.12);
-const cplate = new THREE.Mesh(cplateGeo, darkMetalMat);
-cplate.position.set(0, 0.1, 0.43);
-torsoGroup.add(cplate);
-
-// Ribs
-for (let i = -2; i <= 2; i++) {
-  const ribGeo = new THREE.BoxGeometry(1.3, 0.06, 0.08);
-  const rib = new THREE.Mesh(ribGeo, metalMat);
-  rib.position.set(0, i * 0.18, 0.46);
-  torsoGroup.add(rib);
+function passableForUnit(gx,gy,u){
+if(!passable(gx,gy))return false;
+return CLR[gy][gx]>=unitClearanceNeeded(u);
 }
 
-// Shoulder joints
-[-0.95, 0.95].forEach(x => {
-  const sjGeo = new THREE.SphereGeometry(0.22, 12, 10);
-  const sj = new THREE.Mesh(sjGeo, darkJointMat);
-  sj.position.set(x, 0.5, 0);
-  torsoGroup.add(sj);
-});
-
-// Spine ridge
-const spineGeo = new THREE.BoxGeometry(0.12, 1.3, 0.1);
-const spine = new THREE.Mesh(spineGeo, darkMetalMat);
-spine.position.set(0, 0, -0.43);
-torsoGroup.add(spine);
-
-// Spine vertebrae
-for (let i = -3; i <= 3; i++) {
-  const vGeo = new THREE.BoxGeometry(0.2, 0.1, 0.14);
-  const v = new THREE.Mesh(vGeo, metalMat);
-  v.position.set(0, i * 0.18, -0.46);
-  torsoGroup.add(v);
+// ── A* with clearance ─────────────────────────────────────
+function astar(sx,sy,ex,ey,u){
+// Try strict clearance first, fall back to standard passable
+for(const useClr of[true,false]){
+const ok=(gx,gy)=>useClr?passableForUnit(gx,gy,u):passable(gx,gy);
+if(!ok(ex,ey))continue;
+const K=(x,y)=>y*MW+x;
+const open=new Map(),closed=new Set(),g=new Map(),from=new Map();
+g.set(K(sx,sy),0);
+open.set(K(sx,sy),{x:sx,y:sy,f:Math.abs(sx-ex)+Math.abs(sy-ey)});
+const D=[[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[1,-1],[-1,1],[1,1]];
+let result=null;
+for(let iter=0;iter<10000&&open.size>0;iter++){
+let best=null;for(const v of open.values())if(!best||v.f<best.f)best=v;
+const cur=best,ck=K(cur.x,cur.y);
+open.delete(ck);closed.add(ck);
+if(cur.x===ex&&cur.y===ey){
+const path=[];let c=ck;
+while(from.has(c)){path.unshift({x:c%MW,y:Math.floor(c/MW)});c=from.get(c);}
+path.unshift({x:sx,y:sy});result=path;break;
+}
+for(const [dx,dy] of D){
+const nx=cur.x+dx,ny=cur.y+dy,nk=K(nx,ny);
+if(!ok(nx,ny)||closed.has(nk))continue;
+if(Math.abs(dx)+Math.abs(dy)===2&&(!ok(cur.x+dx,cur.y)||!ok(cur.x,cur.y+dy)))continue;
+const ng=(g.get(ck)||0)+(Math.abs(dx)+Math.abs(dy)===2?1.414:1);
+if(ng<(g.get(nk)||Infinity)){
+g.set(nk,ng);from.set(nk,ck);
+open.set(nk,{x:nx,y:ny,f:ng+Math.abs(nx-ex)+Math.abs(ny-ey)});
+}
+}
+}
+if(result)return result;
+}
+return null;
 }
 
-// Abs section
-const absGeo = new THREE.BoxGeometry(1.3, 0.55, 0.65);
-const abs = new THREE.Mesh(absGeo, metalMat);
-abs.position.y = -0.95;
-torsoGroup.add(abs);
-
-// Pelvis
-const pelvisGeo = new THREE.BoxGeometry(1.4, 0.35, 0.6);
-const pelvis = new THREE.Mesh(pelvisGeo, darkMetalMat);
-pelvis.position.y = -1.3;
-torsoGroup.add(pelvis);
-
-terminator.add(torsoGroup);
-
-// === ARMS ===
-function makeArm(side) {
-  const armGroup = new THREE.Group();
-  const xOffset = side * 1.05;
-
-  // Upper arm
-  const uaGeo = new THREE.CylinderGeometry(0.16, 0.14, 0.85, 10);
-  const ua = new THREE.Mesh(uaGeo, metalMat);
-  ua.position.set(xOffset, 2.6, 0);
-  ua.rotation.z = side * 0.15;
-  armGroup.add(ua);
-
-  // Elbow
-  const elbowGeo = new THREE.SphereGeometry(0.16, 10, 8);
-  const elbow = new THREE.Mesh(elbowGeo, darkJointMat);
-  elbow.position.set(xOffset + side * 0.12, 2.1, 0);
-  armGroup.add(elbow);
-
-  // Forearm
-  const faGeo = new THREE.CylinderGeometry(0.13, 0.11, 0.8, 10);
-  const fa = new THREE.Mesh(faGeo, metalMat);
-  fa.position.set(xOffset + side * 0.18, 1.65, 0);
-  fa.rotation.z = side * 0.25;
-  armGroup.add(fa);
-
-  // Pistons on forearm
-  for (let i = 0; i < 2; i++) {
-    const pGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.6, 6);
-    const p = new THREE.Mesh(pGeo, darkMetalMat);
-    p.position.set(xOffset + side * 0.18 + (i - 0.5) * 0.12, 1.65, 0.12);
-    p.rotation.z = side * 0.25;
-    armGroup.add(p);
-  }
-
-  // Wrist
-  const wristGeo = new THREE.SphereGeometry(0.13, 10, 8);
-  const wrist = new THREE.Mesh(wristGeo, darkJointMat);
-  wrist.position.set(xOffset + side * 0.28, 1.2, 0);
-  armGroup.add(wrist);
-
-  // Hand / palm
-  const handGeo = new THREE.BoxGeometry(0.2, 0.28, 0.1);
-  const hand = new THREE.Mesh(handGeo, metalMat);
-  hand.position.set(xOffset + side * 0.3, 0.9, 0);
-  armGroup.add(hand);
-
-  // Fingers
-  for (let f = 0; f < 4; f++) {
-    const fy = f * 0.06 - 0.09;
-    const fGeo = new THREE.CylinderGeometry(0.025, 0.02, 0.22, 6);
-    const finger = new THREE.Mesh(fGeo, metalMat);
-    finger.rotation.z = Math.PI / 2;
-    finger.position.set(xOffset + side * 0.4, 0.82 + fy, 0);
-    armGroup.add(finger);
-
-    // Knuckle
-    const knuckleGeo = new THREE.SphereGeometry(0.028, 6, 6);
-    const knuckle = new THREE.Mesh(knuckleGeo, darkJointMat);
-    knuckle.position.set(xOffset + side * 0.35, 0.82 + fy, 0);
-    armGroup.add(knuckle);
-  }
-
-  // Thumb
-  const thumbGeo = new THREE.CylinderGeometry(0.025, 0.02, 0.16, 6);
-  const thumb = new THREE.Mesh(thumbGeo, metalMat);
-  thumb.rotation.x = Math.PI / 4;
-  thumb.rotation.z = Math.PI / 2;
-  thumb.position.set(xOffset + side * 0.38, 0.72, 0.06);
-  armGroup.add(thumb);
-
-  return armGroup;
+function los(a,b){
+let x0=a.x,y0=a.y,x1=b.x,y1=b.y;
+const dx=Math.abs(x1-x0),dy=Math.abs(y1-y0),sx=x0<x1?1:-1,sy=y0<y1?1:-1;
+let err=dx-dy;
+while(true){if(!passable(x0,y0))return false;if(x0===x1&&y0===y1)return true;const e2=2*err;if(e2>-dy){err-=dy;x0+=sx;}if(e2<dx){err+=dx;y0+=sy;}}
+}
+function smooth(path){
+if(!path||path.length<3)return path||[];
+const r=[path[0]];let a=0;
+for(let i=2;i<path.length;i++){if(!los(path[a],path[i])){r.push(path[i-1]);a=i-1;}}
+r.push(path[path.length-1]);return r;
 }
 
-terminator.add(makeArm(-1));
-terminator.add(makeArm(1));
-
-// === LEGS ===
-function makeLeg(side) {
-  const legGroup = new THREE.Group();
-  const xOffset = side * 0.42;
-
-  // Hip joint
-  const hipGeo = new THREE.SphereGeometry(0.2, 10, 8);
-  const hip = new THREE.Mesh(hipGeo, darkJointMat);
-  hip.position.set(xOffset, 0.3, 0);
-  legGroup.add(hip);
-
-  // Thigh
-  const thighGeo = new THREE.CylinderGeometry(0.19, 0.16, 0.95, 10);
-  const thigh = new THREE.Mesh(thighGeo, metalMat);
-  thigh.position.set(xOffset, -0.3, 0);
-  legGroup.add(thigh);
-
-  // Thigh plates
-  const tpGeo = new THREE.BoxGeometry(0.3, 0.6, 0.08);
-  const tp = new THREE.Mesh(tpGeo, darkMetalMat);
-  tp.position.set(xOffset, -0.28, 0.2);
-  legGroup.add(tp);
-
-  // Knee
-  const kneeGeo = new THREE.SphereGeometry(0.18, 10, 8);
-  const knee = new THREE.Mesh(kneeGeo, darkJointMat);
-  knee.position.set(xOffset, -0.8, 0);
-  legGroup.add(knee);
-
-  // Kneecap
-  const kcGeo = new THREE.BoxGeometry(0.22, 0.14, 0.12);
-  const kc = new THREE.Mesh(kcGeo, metalMat);
-  kc.position.set(xOffset, -0.8, 0.2);
-  legGroup.add(kc);
-
-  // Shin
-  const shinGeo = new THREE.CylinderGeometry(0.14, 0.12, 0.9, 10);
-  const shin = new THREE.Mesh(shinGeo, metalMat);
-  shin.position.set(xOffset, -1.35, 0);
-  legGroup.add(shin);
-
-  // Shin pistons
-  for (let p = 0; p < 2; p++) {
-    const pGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.7, 6);
-    const piston = new THREE.Mesh(pGeo, darkMetalMat);
-    piston.position.set(xOffset + (p - 0.5) * 0.16, -1.35, 0.12);
-    legGroup.add(piston);
-  }
-
-  // Ankle
-  const ankleGeo = new THREE.SphereGeometry(0.13, 10, 8);
-  const ankle = new THREE.Mesh(ankleGeo, darkJointMat);
-  ankle.position.set(xOffset, -1.85, 0);
-  legGroup.add(ankle);
-
-  // Foot
-  const footGeo = new THREE.BoxGeometry(0.3, 0.14, 0.55);
-  const foot = new THREE.Mesh(footGeo, metalMat);
-  foot.position.set(xOffset, -1.97, 0.1);
-  legGroup.add(foot);
-
-  // Toe
-  const toeGeo = new THREE.BoxGeometry(0.28, 0.1, 0.15);
-  const toe = new THREE.Mesh(toeGeo, darkMetalMat);
-  toe.position.set(xOffset, -1.97, 0.42);
-  legGroup.add(toe);
-
-  return legGroup;
+// UNITS
+const SPAWNS=[[4,4],[6,4],[8,4],[4,6],[6,6],[14,4],[16,4],[18,4],[14,6],[16,6]];
+const units=[];
+for(let i=0;i<10;i++){
+const [gx,gy]=SPAWNS[i];
+units.push({id:i,type:i<5?‘soldier’:‘tank’,x:gx*CELL+CELL/2,y:gy*CELL+CELL/2,
+angle:Math.PI/2,turretAngle:Math.PI/2,sel:false,path:[],pi:0,moving:false,
+speed:i<5?80:60,size:i<5?11:17});
 }
 
-terminator.add(makeLeg(-1));
-terminator.add(makeLeg(1));
-
-// Center and add to scene
-terminator.position.y = 0.2;
-scene.add(terminator);
-
-// === LIGHTING ===
-const ambientLight = new THREE.AmbientLight(0x111111, 1);
-scene.add(ambientLight);
-
-// Key light (red-tinted)
-const keyLight = new THREE.DirectionalLight(0xff4422, 3);
-keyLight.position.set(3, 5, 3);
-keyLight.castShadow = true;
-scene.add(keyLight);
-
-// Fill light (blue cold)
-const fillLight = new THREE.DirectionalLight(0x2244aa, 1.5);
-fillLight.position.set(-4, 3, -2);
-scene.add(fillLight);
-
-// Rim light
-const rimLight = new THREE.DirectionalLight(0xffffff, 2);
-rimLight.position.set(0, -2, -5);
-scene.add(rimLight);
-
-// Ground glow
-const groundGlow = new THREE.PointLight(0xff1100, 3, 6);
-groundGlow.position.set(0, -2, 0);
-scene.add(groundGlow);
-
-// Top accent
-const topLight = new THREE.PointLight(0xffffff, 1, 8);
-topLight.position.set(0, 8, 2);
-scene.add(topLight);
-
-// Ground plane
-const groundGeo = new THREE.PlaneGeometry(30, 30);
-const groundMat = new THREE.MeshStandardMaterial({
-  color: 0x0a0000,
-  roughness: 0.8,
-  metalness: 0.4,
-});
-const ground = new THREE.Mesh(groundGeo, groundMat);
-ground.rotation.x = -Math.PI / 2;
-ground.position.y = -1.85;
-ground.receiveShadow = true;
-scene.add(ground);
-
-// Grid lines on ground
-const gridHelper = new THREE.GridHelper(20, 30, 0xff220022, 0xff220011);
-gridHelper.position.y = -1.84;
-scene.add(gridHelper);
-
-// Particles
-const particleGeo = new THREE.BufferGeometry();
-const pCount = 200;
-const positions = new Float32Array(pCount * 3);
-for (let i = 0; i < pCount * 3; i++) {
-  positions[i] = (Math.random() - 0.5) * 20;
-}
-particleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-const particleMat = new THREE.PointsMaterial({ color: 0xff1100, size: 0.04, transparent: true, opacity: 0.5 });
-const particles = new THREE.Points(particleGeo, particleMat);
-scene.add(particles);
-
-// Mouse interaction
-let isDragging = false;
-let prevMouse = { x: 0, y: 0 };
-let rotX = 0, rotY = 0;
-let targetRotX = 0, targetRotY = 0;
-let autoRotate = true;
-
-canvas.addEventListener('mousedown', e => { isDragging = true; autoRotate = false; prevMouse = { x: e.clientX, y: e.clientY }; });
-canvas.addEventListener('mouseup', () => { isDragging = false; });
-canvas.addEventListener('mousemove', e => {
-  if (!isDragging) return;
-  const dx = e.clientX - prevMouse.x;
-  const dy = e.clientY - prevMouse.y;
-  targetRotY += dx * 0.008;
-  targetRotX += dy * 0.005;
-  targetRotX = Math.max(-0.5, Math.min(0.5, targetRotX));
-  prevMouse = { x: e.clientX, y: e.clientY };
-});
-
-// Touch
-canvas.addEventListener('touchstart', e => { isDragging = true; autoRotate = false; prevMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY }; });
-canvas.addEventListener('touchend', () => { isDragging = false; });
-canvas.addEventListener('touchmove', e => {
-  if (!isDragging) return;
-  const dx = e.touches[0].clientX - prevMouse.x;
-  const dy = e.touches[0].clientY - prevMouse.y;
-  targetRotY += dx * 0.008;
-  targetRotX += dy * 0.005;
-  prevMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-});
-
-// Zoom
-let zoom = 8;
-canvas.addEventListener('wheel', e => {
-  zoom += e.deltaY * 0.01;
-  zoom = Math.max(4, Math.min(15, zoom));
-});
-
-// Resize
-window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-});
-
-let time = 0;
-function animate() {
-  requestAnimationFrame(animate);
-  time += 0.016;
-
-  if (autoRotate) {
-    targetRotY += 0.005;
-  }
-
-  rotX += (targetRotX - rotX) * 0.08;
-  rotY += (targetRotY - rotY) * 0.08;
-
-  terminator.rotation.y = rotY;
-  terminator.rotation.x = rotX;
-
-  // Subtle idle animation
-  terminator.position.y = 0.2 + Math.sin(time * 0.6) * 0.04;
-  headGroup.rotation.y = Math.sin(time * 0.3) * 0.05;
-
-  // Camera zoom
-  camera.position.set(0, 2, zoom);
-  camera.lookAt(0, 1.5, 0);
-
-  // Particles drift
-  particles.rotation.y += 0.001;
-
-  renderer.render(scene, camera);
+// DRAW SOLDIER
+function drawSoldier(c,x,y,angle,sel,s){
+s=s||1;
+c.save();c.translate(x,y);c.rotate(angle);
+c.fillStyle=‘rgba(0,0,0,0.2)’;c.beginPath();c.ellipse(1*s,2*s,9*s,6*s,0,0,Math.PI*2);c.fill();
+c.fillStyle=’#3a4818’;c.fillRect(-5*s,5*s,4*s,7*s);c.fillRect(1*s,5*s,4*s,7*s);
+c.fillStyle=’#1a1208’;c.fillRect(-5*s,11*s,4*s,3*s);c.fillRect(1*s,11*s,4*s,3*s);
+c.fillStyle=sel?’#7a9838’:’#4a6020’;c.beginPath();c.roundRect(-6*s,-5*s,12*s,12*s,2*s);c.fill();
+c.fillStyle=’#2e3a10’;c.fillRect(-5*s,-4*s,10*s,10*s);
+c.strokeStyle=’#1e2808’;c.lineWidth=1.5*s;
+c.beginPath();c.moveTo(-3*s,-4*s);c.lineTo(-3*s,6*s);c.stroke();
+c.beginPath();c.moveTo(3*s,-4*s);c.lineTo(3*s,6*s);c.stroke();
+c.beginPath();c.moveTo(-5*s,1*s);c.lineTo(5*s,1*s);c.stroke();
+c.fillStyle=’#1e2808’;c.fillRect(-5*s,1*s,4*s,4*s);c.fillRect(1*s,1*s,4*s,4*s);
+c.fillStyle=’#4a6020’;c.fillRect(-10*s,-3*s,5*s,5*s);c.fillRect(5*s,-3*s,5*s,5*s);
+c.fillStyle=’#1c1c14’;c.fillRect(-1.5*s,-16*s,3*s,16*s);
+c.fillStyle=’#141410’;c.fillRect(-1*s,-20*s,2*s,6*s);
+c.fillStyle=’#282820’;c.fillRect(-2*s,-13*s,4*s,5*s);
+c.fillStyle=’#5a3810’;c.fillRect(-2*s,-5*s,4*s,6*s);
+c.fillStyle=’#2e3a10’;c.beginPath();c.arc(0,-7*s,5*s,0,Math.PI*2);c.fill();
+c.fillStyle=’#222e0c’;c.beginPath();c.ellipse(0,-7*s,6.5*s,2*s,0,0,Math.PI);c.fill();
+c.fillStyle=’#c09060’;c.beginPath();c.arc(0,-7.5*s,3.2*s,0,Math.PI*2);c.fill();
+c.fillStyle=‘rgba(60,160,200,0.55)’;c.fillRect(-3.5*s,-9.5*s,7*s,2.5*s);
+c.strokeStyle=’#444’;c.lineWidth=0.5*s;c.strokeRect(-3.5*s,-9.5*s,7*s,2.5*s);
+if(sel){c.strokeStyle=’#00ff88’;c.lineWidth=2;c.beginPath();c.arc(0,0,15*s,0,Math.PI*2);c.stroke();}
+c.restore();
 }
 
-animate();
+// DRAW TANK
+function drawTank(c,x,y,angle,turretAngle,sel,s){
+s=s||1;
+c.save();c.translate(x,y);
+c.fillStyle=‘rgba(0,0,0,0.25)’;c.beginPath();c.ellipse(3*s,5*s,22*s,14*s,angle,0,Math.PI*2);c.fill();
+c.restore();
+// hull
+c.save();c.translate(x,y);c.rotate(angle);
+// left track
+c.fillStyle=’#252518’;c.beginPath();c.roundRect(-20*s,-20*s,7*s,40*s,3*s);c.fill();
+c.fillStyle=’#353528’;for(let i=0;i<10;i++)c.fillRect(-20*s,-19*s+i*4*s,7*s,2*s);
+c.fillStyle=’#3a3828’;c.beginPath();c.arc(-16.5*s,-17*s,4.5*s,0,Math.PI*2);c.fill();c.beginPath();c.arc(-16.5*s,17*s,4.5*s,0,Math.PI*2);c.fill();
+for(let i=0;i<3;i++){c.fillStyle=’#303020’;c.beginPath();c.arc(-16.5*s,-8*s+i*8*s,3.5*s,0,Math.PI*2);c.fill();c.fillStyle=’#1a1a10’;c.beginPath();c.arc(-16.5*s,-8*s+i*8*s,1.5*s,0,Math.PI*2);c.fill();}
+// right track
+c.fillStyle=’#252518’;c.beginPath();c.roundRect(13*s,-20*s,7*s,40*s,3*s);c.fill();
+c.fillStyle=’#353528’;for(let i=0;i<10;i++)c.fillRect(13*s,-19*s+i*4*s,7*s,2*s);
+c.fillStyle=’#3a3828’;c.beginPath();c.arc(16.5*s,-17*s,4.5*s,0,Math.PI*2);c.fill();c.beginPath();c.arc(16.5*s,17*s,4.5*s,0,Math.PI*2);c.fill();
+for(let i=0;i<3;i++){c.fillStyle=’#303020’;c.beginPath();c.arc(16.5*s,-8*s+i*8*s,3.5*s,0,Math.PI*2);c.fill();c.fillStyle=’#1a1a10’;c.beginPath();c.arc(16.5*s,-8*s+i*8*s,1.5*s,0,Math.PI*2);c.fill();}
+// hull body
+c.fillStyle=sel?’#7a8848’:’#4e5a28’;
+c.beginPath();c.moveTo(-12*s,-20*s);c.lineTo(12*s,-20*s);c.lineTo(14*s,-10*s);c.lineTo(14*s,16*s);c.lineTo(-14*s,16*s);c.lineTo(-14*s,-10*s);c.closePath();c.fill();
+c.strokeStyle=‘rgba(0,0,0,0.35)’;c.lineWidth=1;
+c.beginPath();c.moveTo(-14*s,-2*s);c.lineTo(14*s,-2*s);c.stroke();
+c.beginPath();c.moveTo(-12*s,-20*s);c.lineTo(-14*s,-10*s);c.stroke();
+c.beginPath();c.moveTo(12*s,-20*s);c.lineTo(14*s,-10*s);c.stroke();
+c.fillStyle=‘rgba(255,255,255,0.06)’;c.beginPath();c.moveTo(-11*s,-19*s);c.lineTo(11*s,-19*s);c.lineTo(13*s,-10*s);c.lineTo(-13*s,-10*s);c.closePath();c.fill();
+c.fillStyle=’#181810’;c.fillRect(-9*s,13*s,3*s,5*s);c.fillRect(6*s,13*s,3*s,5*s);
+c.fillStyle=‘rgba(60,60,40,0.25)’;c.beginPath();c.arc(-7.5*s,17*s,3*s,0,Math.PI*2);c.fill();c.beginPath();c.arc(7.5*s,17*s,3*s,0,Math.PI*2);c.fill();
+c.fillStyle=’#1a1a10’;c.fillRect(-9*s,11*s,18*s,3*s);
+c.restore();
+// turret
+c.save();c.translate(x,y);c.rotate(turretAngle);
+c.fillStyle=’#333820’;c.beginPath();c.arc(0,0,9*s,0,Math.PI*2);c.fill();
+c.fillStyle=sel?’#6a7838’:’#3e4c1e’;
+c.beginPath();c.moveTo(-9*s,6*s);c.lineTo(9*s,6*s);c.lineTo(10*s,-2*s);c.lineTo(7*s,-9*s);c.lineTo(-7*s,-9*s);c.lineTo(-10*s,-2*s);c.closePath();c.fill();
+c.strokeStyle=‘rgba(0,0,0,0.3)’;c.lineWidth=1;
+c.beginPath();c.moveTo(-9*s,0);c.lineTo(9*s,0);c.stroke();
+c.fillStyle=’#2a3010’;c.beginPath();c.arc(0,0,4*s,0,Math.PI*2);c.fill();
+c.fillStyle=‘rgba(100,180,100,0.18)’;c.beginPath();c.arc(-0.5*s,-0.5*s,2.5*s,0,Math.PI*2);c.fill();
+c.fillStyle=’#1a1a0e’;c.fillRect(-1*s,-16*s,2*s,8*s);
+c.fillStyle=’#222218’;c.fillRect(-2*s,-14*s,4*s,4*s);
+c.fillStyle=’#2a2a18’;c.fillRect(-3.5*s,-9*s,7*s,5*s);
+c.fillStyle=’#1a1a10’;c.fillRect(-2.2*s,-34*s,4.4*s,27*s);
+c.fillStyle=’#222215’;c.fillRect(-3.8*s,-36*s,7.6*s,3*s);c.fillRect(-2.8*s,-38*s,5.6*s,2*s);
+c.fillStyle=’#0a0a06’;c.fillRect(-1*s,-38*s,2*s,40*s);
+if(sel){c.strokeStyle=’#00ff88’;c.lineWidth=2;c.beginPath();c.arc(0,0,21*s,0,Math.PI*2);c.stroke();}
+c.restore();
+}
+
+// CAMERA
+let cam={x:PW/2,y:PH/3,z:1};
+function clamp(){const hw=cv.width/cam.z/2,hh=cv.height/cam.z/2;cam.x=Math.max(hw,Math.min(PW-hw,cam.x));cam.y=Math.max(hh,Math.min(PH-hh,cam.y));}
+clamp();
+function s2w(sx,sy){return{x:(sx-cv.width/2)/cam.z+cam.x,y:(sy-cv.height/2)/cam.z+cam.y};}
+
+// HUD
+function buildHUD(){
+const sl=document.getElementById(‘slots’);sl.innerHTML=’’;
+for(const u of units){
+const div=document.createElement(‘div’);
+div.className=‘slot’+(u.sel?’ sel’:’’);
+const ic=document.createElement(‘canvas’);ic.width=48;ic.height=48;
+const ic2=ic.getContext(‘2d’);
+if(u.type===‘soldier’)drawSoldier(ic2,24,28,-Math.PI/2,false,0.58);
+else drawTank(ic2,24,26,-Math.PI/2,-Math.PI/2,false,0.52);
+div.appendChild(ic);
+const lbl=document.createElement(‘div’);lbl.className=‘lbl’;
+lbl.textContent=(u.type===‘soldier’?‘SOL’:‘TNK’)+(u.id+1);
+div.appendChild(lbl);
+const uid=u.id;
+div.addEventListener(‘pointerdown’,e=>{e.preventDefault();e.stopPropagation();toggle(uid);},{passive:false});
+sl.appendChild(div);
+}
+}
+buildHUD();
+
+document.getElementById(‘btnAll’).addEventListener(‘pointerdown’,e=>{e.preventDefault();units.forEach(u=>u.sel=true);buildHUD();},{passive:false});
+document.getElementById(‘btnNone’).addEventListener(‘pointerdown’,e=>{e.preventDefault();units.forEach(u=>u.sel=false);buildHUD();},{passive:false});
+
+function toggle(id){units[id].sel=!units[id].sel;buildHUD();}
+
+// MOVE
+const FAN=[[0,0],[-2,0],[2,0],[0,-2],[0,2],[-2,-2],[2,-2],[-2,2],[2,2],[-4,0]];
+function moveSelected(wx,wy){
+const sel=units.filter(u=>u.sel);if(!sel.length)return;
+const tgx=Math.floor(wx/CELL),tgy=Math.floor(wy/CELL);
+sel.forEach((u,i)=>{
+let tx=tgx+(FAN[i]||[0,0])[0],ty=tgy+(FAN[i]||[0,0])[1];
+if(!passable(tx,ty)){const dirs=[[0,0],[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]];for(const[dx,dy]of dirs)if(passable(tx+dx,ty+dy)){tx+=dx;ty+=dy;break;}}
+const raw=astar(Math.floor(u.x/CELL),Math.floor(u.y/CELL),tx,ty);
+if(raw&&raw.length>1){u.path=smooth(raw);u.pi=1;u.moving=true;}
+});
+}
+
+let marker=null;
+
+// UPDATE
+let last=performance.now();
+function update(dt){
+for(const u of units){
+if(!u.moving||u.pi>=u.path.length)continue;
+const tg=u.path[u.pi];
+const tx=tg.x*CELL+CELL/2,ty=tg.y*CELL+CELL/2;
+const dx=tx-u.x,dy=ty-u.y,dist=Math.hypot(dx,dy);
+let ax=0,ay=0;
+for(const o of units){
+if(o===u)continue;
+const ox=u.x-o.x,oy=u.y-o.y,od=Math.hypot(ox,oy),minD=u.size+o.size+5;
+if(od<minD&&od>0.1){const f=(minD-od)/minD;ax+=ox/od*f*50;ay+=oy/od*f*50;}
+}
+if(dist<12){u.pi++;if(u.pi>=u.path.length){u.moving=false;u.path=[];}}
+else{
+let nx=dx/dist+ax*0.3,ny=dy/dist+ay*0.3;
+const len=Math.hypot(nx,ny)||1;nx/=len;ny/=len;
+u.x+=nx*u.speed*dt;u.y+=ny*u.speed*dt;
+const ta=Math.atan2(ny,nx);
+let da=ta-u.angle;while(da>Math.PI)da-=2*Math.PI;while(da<-Math.PI)da+=2*Math.PI;
+u.angle+=da*Math.min(1,9*dt);
+if(u.type===‘tank’){let dta=ta-u.turretAngle;while(dta>Math.PI)dta-=2*Math.PI;while(dta<-Math.PI)dta+=2*Math.PI;u.turretAngle+=dta*Math.min(1,3*dt);}
+else u.turretAngle=u.angle;
+}
+}
+}
+
+// DRAW
+function draw(){
+const W=cv.width,H=cv.height;
+cx.clearRect(0,0,W,H);
+cx.save();
+cx.translate(W/2-cam.x*cam.z,H/2-cam.y*cam.z);
+cx.scale(cam.z,cam.z);
+cx.drawImage(mc,0,0);
+for(const u of units){
+if(!u.sel||!u.moving||u.path.length<2)continue;
+cx.save();cx.strokeStyle=‘rgba(0,255,136,0.4)’;cx.lineWidth=2/cam.z;cx.setLineDash([6,4]);
+cx.beginPath();cx.moveTo(u.x,u.y);
+for(let i=u.pi;i<u.path.length;i++)cx.lineTo(u.path[i].x*CELL+CELL/2,u.path[i].y*CELL+CELL/2);
+cx.stroke();cx.restore();
+}
+if(marker){
+const age=(Date.now()-marker.t)/600;
+if(age<1){cx.save();cx.globalAlpha=1-age;cx.strokeStyle=’#00ff88’;cx.lineWidth=2;cx.beginPath();cx.arc(marker.x,marker.y,age*22+4,0,Math.PI*2);cx.stroke();cx.restore();}
+else marker=null;
+}
+[…units].sort((a,b)=>a.y-b.y).forEach(u=>{
+if(u.type===‘soldier’)drawSoldier(cx,u.x,u.y,u.angle,u.sel);
+else drawTank(cx,u.x,u.y,u.angle,u.turretAngle,u.sel);
+});
+cx.restore();
+}
+
+function loop(ts){
+const dt=Math.min((ts-last)/1000,0.05);last=ts;
+update(dt);draw();requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+// INPUT — clean separation of tap vs pan
+let ptrs={};
+let panOn=false,panSX=0,panSY=0,camX0=0,camY0=0;
+let pinchOn=false,pinch0=0,zoom0=1;
+let tap=null;
+
+cv.addEventListener(‘pointerdown’,e=>{
+e.preventDefault();
+ptrs[e.pointerId]={x:e.clientX,y:e.clientY};
+const n=Object.keys(ptrs).length;
+if(n===1){
+panOn=true;panSX=e.clientX;panSY=e.clientY;camX0=cam.x;camY0=cam.y;
+tap={x:e.clientX,y:e.clientY,t:Date.now()};
+}
+if(n===2){
+panOn=false;tap=null;pinchOn=true;
+const pp=Object.values(ptrs);
+pinch0=Math.hypot(pp[0].x-pp[1].x,pp[0].y-pp[1].y);
+zoom0=cam.z;
+}
+},{passive:false});
+
+cv.addEventListener(‘pointermove’,e=>{
+e.preventDefault();
+if(!ptrs[e.pointerId])return;
+ptrs[e.pointerId]={x:e.clientX,y:e.clientY};
+const n=Object.keys(ptrs).length;
+if(panOn&&n===1){
+const dx=e.clientX-panSX,dy=e.clientY-panSY;
+cam.x=camX0-dx/cam.z;cam.y=camY0-dy/cam.z;clamp();
+if(tap&&Math.hypot(dx,dy)>12)tap=null;
+}
+if(pinchOn&&n===2){
+const pp=Object.values(ptrs);
+const d=Math.hypot(pp[0].x-pp[1].x,pp[0].y-pp[1].y);
+cam.z=Math.max(0.3,Math.min(3,zoom0*(d/pinch0)));
+}
+},{passive:false});
+
+cv.addEventListener(‘pointerup’,e=>{
+e.preventDefault();
+const wasTap=tap;
+const wasT=tap?tap.t:0;
+delete ptrs[e.pointerId];
+const n=Object.keys(ptrs).length;
+if(n<2)pinchOn=false;
+if(n===0){
+panOn=false;
+if(wasTap&&(Date.now()-wasT)<350){
+const moved=Math.hypot(e.clientX-wasTap.x,e.clientY-wasTap.y);
+if(moved<15){
+const w=s2w(e.clientX,e.clientY);
+let hit=null;
+for(let i=units.length-1;i>=0;i–){const u=units[i];if(Math.hypot(w.x-u.x,w.y-u.y)<u.size+8){hit=u;break;}}
+if(hit){toggle(hit.id);}
+else if(units.some(u=>u.sel)){moveSelected(w.x,w.y);marker={x:w.x,y:w.y,t:Date.now()};}
+else{units.forEach(u=>u.sel=false);buildHUD();}
+}
+}
+tap=null;
+}
+},{passive:false});
+
+cv.addEventListener(‘pointercancel’,e=>{delete ptrs[e.pointerId];tap=null;});
+cv.addEventListener(‘wheel’,e=>{e.preventDefault();cam.z=Math.max(0.3,Math.min(3,cam.z*(e.deltaY>0?0.9:1.1)));},{passive:false});
 </script>
 
 </body>
