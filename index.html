@@ -1,439 +1,657 @@
-<!DOCTYPE html>
+import { useState, useEffect, useRef, useCallback } from “react”;
 
-<html lang="ru">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Tactics</title>
-<style>
-*{margin:0;padding:0;box-sizing:border-box;}
-body{background:#000;overflow:hidden;width:100vw;height:100vh;font-family:monospace;}
-#c{display:block;touch-action:none;}
-#hud{
-  position:fixed;bottom:0;left:0;right:0;height:80px;
-  background:rgba(8,10,6,0.95);border-top:2px solid #3a4a20;
-  display:flex;align-items:center;padding:6px 8px;gap:6px;
-  overflow-x:auto;z-index:20;
-}
-.slot{
-  flex-shrink:0;width:60px;height:60px;border:2px solid #444;
-  border-radius:5px;background:#111a08;cursor:pointer;
-  display:flex;flex-direction:column;align-items:center;
-  justify-content:center;position:relative;overflow:hidden;
-}
-.slot.sel{border-color:#00ff88;box-shadow:0 0 10px #00ff8855;}
-.slot canvas{width:48px;height:48px;pointer-events:none;}
-.slot .lbl{position:absolute;bottom:1px;font-size:7px;color:#888;pointer-events:none;}
-#btnAll{
-  flex-shrink:0;width:52px;height:60px;border:2px solid #665;
-  border-radius:5px;background:#1a1a08;cursor:pointer;
-  display:flex;flex-direction:column;align-items:center;
-  justify-content:center;color:#cc9;font-size:9px;text-align:center;
-  line-height:1.3;gap:2px;
-}
-#btnNone{
-  flex-shrink:0;width:52px;height:60px;border:2px solid #555;
-  border-radius:5px;background:#111108;cursor:pointer;
-  display:flex;flex-direction:column;align-items:center;
-  justify-content:center;color:#998;font-size:9px;text-align:center;
-  line-height:1.3;gap:2px;
-}
-</style>
-</head>
-<body>
-<canvas id="c"></canvas>
-<div id="hud">
-  <button id="btnAll">ALL<br>✅</button>
-  <button id="btnNone">NONE<br>❌</button>
-  <div id="slots" style="display:flex;gap:6px;align-items:center;"></div>
-</div>
-<script>
-const cv=document.getElementById('c');
-const cx=cv.getContext('2d');
-const HUD=80;
-function resize(){cv.width=window.innerWidth;cv.height=window.innerHeight-HUD;}
-resize();window.addEventListener('resize',resize);
+const COLS = 52, ROWS = 42, CELL = 36;
+const MAP_W = COLS * CELL, MAP_H = ROWS * CELL;
+const TERRAIN = { GRASS: 0, WATER: 1, ROCK: 2, WALL: 3, RUBBLE: 4, FOREST: 5 };
+const IMPASSABLE = new Set([TERRAIN.WATER, TERRAIN.ROCK, TERRAIN.WALL]);
+const TERRAIN_COLORS = {
+[TERRAIN.GRASS]: ‘#4a7c3f’, [TERRAIN.WATER]: ‘#2a6496’, [TERRAIN.ROCK]: ‘#6b6b6b’,
+[TERRAIN.WALL]: ‘#3d3d3d’, [TERRAIN.RUBBLE]: ‘#8a7d6b’, [TERRAIN.FOREST]: ‘#2d5a27’
+};
 
-// MAP
-const CELL=36,MW=52,MH=42;
-const PW=MW*CELL,PH=MH*CELL;
-const T=[];
-for(let y=0;y<MH;y++){T[y]=[];for(let x=0;x<MW;x++)T[y][x]=0;}
-function rect(x,y,w,h,v){for(let dy=0;dy<h;dy++)for(let dx=0;dx<w;dx++){const ny=y+dy,nx=x+dx;if(ny>=0&&ny<MH&&nx>=0&&nx<MW)T[ny][nx]=v;}}
-function circ(cx2,cy2,r,v){for(let y=cy2-r;y<=cy2+r;y++)for(let x=cx2-r;x<=cx2+r;x++)if(y>=0&&y<MH&&x>=0&&x<MW&&(x-cx2)**2+(y-cy2)**2<=r*r)T[y][x]=v;}
-rect(1,1,7,4,1);rect(20,18,6,4,1);rect(38,4,6,5,1);rect(44,28,6,5,1);rect(4,34,5,5,1);
-circ(10,8,3,2);circ(30,12,2,2);circ(44,20,3,2);circ(18,32,2,2);circ(48,10,2,2);circ(32,38,2,2);
-rect(16,4,1,10,3);rect(16,4,8,1,3);rect(26,10,1,8,3);rect(26,10,8,1,3);rect(34,10,1,8,3);
-rect(8,22,1,8,3);rect(8,22,7,1,3);rect(8,29,7,1,3);
-rect(38,24,8,1,3);rect(38,24,1,6,3);rect(38,30,8,1,3);
-rect(20,15,3,2,4);rect(35,32,3,3,4);rect(48,36,3,2,4);rect(12,12,2,3,4);
-circ(24,4,3,5);circ(46,33,3,5);circ(2,16,3,5);circ(36,42,3,5);circ(12,40,2,5);
-
-function passable(gx,gy){
-if(gx<0||gy<0||gx>=MW||gy>=MH)return false;
-return T[gy][gx]!==1&&T[gy][gx]!==2&&T[gy][gx]!==3;
+function generateMap() {
+const grid = Array.from({ length: ROWS }, () => Array(COLS).fill(TERRAIN.GRASS));
+const set = (r, c, t) => { if (r >= 0 && r < ROWS && c >= 0 && c < COLS) grid[r][c] = t; };
+const fillRect = (r1, c1, r2, c2, t) => {
+for (let r = r1; r <= r2; r++) for (let c = c1; c <= c2; c++) set(r, c, t);
+};
+let rc = 10;
+for (let r = 0; r < ROWS; r++) {
+rc += Math.floor(Math.random() * 3) - 1;
+rc = Math.max(8, Math.min(14, rc));
+for (let w = -1; w <= 1; w++) set(r, rc + w, TERRAIN.WATER);
+}
+let rc2 = 38;
+for (let r = 0; r < ROWS; r++) {
+rc2 += Math.floor(Math.random() * 3) - 1;
+rc2 = Math.max(34, Math.min(42, rc2));
+for (let w = -1; w <= 1; w++) set(r, rc2 + w, TERRAIN.WATER);
+}
+for (let r = 10; r <= 12; r++) for (let c = 0; c < COLS; c++) if (grid[r][c] === TERRAIN.WATER) grid[r][c] = TERRAIN.GRASS;
+for (let r = 28; r <= 30; r++) for (let c = 0; c < COLS; c++) if (grid[r][c] === TERRAIN.WATER) grid[r][c] = TERRAIN.GRASS;
+fillRect(3, 20, 7, 24, TERRAIN.ROCK);
+fillRect(15, 28, 18, 31, TERRAIN.ROCK);
+fillRect(30, 5, 33, 7, TERRAIN.ROCK);
+fillRect(8, 44, 14, 48, TERRAIN.WALL);
+fillRect(20, 2, 25, 5, TERRAIN.WALL);
+fillRect(35, 22, 38, 26, TERRAIN.WALL);
+fillRect(12, 18, 13, 20, TERRAIN.RUBBLE);
+fillRect(26, 30, 27, 33, TERRAIN.RUBBLE);
+for (let i = 0; i < 80; i++) {
+const r = Math.floor(Math.random() * ROWS);
+const c = Math.floor(Math.random() * COLS);
+if (grid[r][c] === TERRAIN.GRASS) {
+set(r, c, TERRAIN.FOREST);
+if (Math.random() > 0.4) set(r + 1, c, TERRAIN.FOREST);
+if (Math.random() > 0.4) set(r, c + 1, TERRAIN.FOREST);
+if (Math.random() > 0.5) set(r + 1, c + 1, TERRAIN.FOREST);
+}
+}
+return grid;
 }
 
-// BAKE MAP
-const mc=document.createElement(‘canvas’);mc.width=PW;mc.height=PH;
-const mx=mc.getContext(‘2d’);
-function rng(s){return((Math.sin(s)*43758.5453)%1+1)%1;}
-for(let y=0;y<MH;y++){
-for(let x=0;x<MW;x++){
-const t=T[y][x],px=x*CELL,py=y*CELL,n=rng(x*73+y*137);
-const cols=[[78,110,46],[30,74,114],[122,114,96],[138,120,88],[106,88,64],[46,90,30]];
-const darks=[[58,85,32],[22,56,88],[90,84,72],[106,90,58],[74,58,40],[30,64,16]];
-const b=cols[t],d=darks[t];
-mx.fillStyle=`rgb(${Math.round(b[0]+(d[0]-b[0])*n)},${Math.round(b[1]+(d[1]-b[1])*n)},${Math.round(b[2]+(d[2]-b[2])*n)})`;
-mx.fillRect(px,py,CELL,CELL);
-if(t===0){mx.fillStyle=‘rgba(0,0,0,0.1)’;for(let i=0;i<4;i++)mx.fillRect(px+rng(x+i*7+y)*CELL,py+rng(x+y*3+i)*CELL,2,1);}
-if(t===1){mx.fillStyle=‘rgba(120,200,255,0.2)’;mx.fillRect(px,py+Math.floor(n*CELL*0.7),CELL,2);}
-if(t===2){mx.strokeStyle=‘rgba(0,0,0,0.5)’;mx.lineWidth=1;mx.beginPath();mx.moveTo(px+4,py+n*CELL);mx.lineTo(px+CELL-4,py+(1-n)*CELL);mx.stroke();mx.fillStyle=‘rgba(255,255,255,0.12)’;mx.fillRect(px,py,CELL,3);}
-if(t===3){mx.strokeStyle=‘rgba(0,0,0,0.55)’;mx.lineWidth=1;const row=y%2;for(let i=0;i<2;i++)mx.strokeRect(px+(row?CELL/2:0)+i*(CELL/2),py,CELL/2,CELL);mx.fillStyle=‘rgba(255,255,255,0.1)’;mx.fillRect(px,py,CELL,3);mx.fillStyle=‘rgba(0,0,0,0.2)’;mx.fillRect(px,py+CELL-4,CELL,4);}
-if(t===4){mx.fillStyle=‘rgba(0,0,0,0.3)’;for(let i=0;i<6;i++)mx.fillRect(px+rng(x+i)*CELL,py+rng(y+i*3)*CELL,3+i%3,2+i%2);}
-if(t===5){mx.fillStyle=’#1a4010’;mx.beginPath();mx.arc(px+CELL/2,py+CELL/2,CELL*0.42,0,Math.PI*2);mx.fill();mx.fillStyle=’#2a6020’;mx.beginPath();mx.arc(px+CELL*0.35,py+CELL*0.4,CELL*0.25,0,Math.PI*2);mx.fill();}
-if(!passable(x,y)){mx.fillStyle=‘rgba(200,40,0,0.18)’;mx.fillRect(px,py,CELL,CELL);mx.strokeStyle=‘rgba(180,30,0,0.75)’;mx.lineWidth=2;mx.strokeRect(px+1,py+1,CELL-2,CELL-2);}
+function buildClearance(grid) {
+const cl = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+if (IMPASSABLE.has(grid[r][c])) { cl[r][c] = 0; continue; }
+if (r === 0 || c === 0) { cl[r][c] = 1; continue; }
+cl[r][c] = Math.min(cl[r-1][c], cl[r][c-1], cl[r-1][c-1]) + 1;
 }
+return cl;
 }
 
-// ── CLEARANCE MAP ─────────────────────────────────────────
-// clearance[y][x] = how many cells away from nearest wall/impassable
-const CLR=[];
-for(let y=0;y<MH;y++){CLR[y]=[];for(let x=0;x<MW;x++)CLR[y][x]=0;}
-(function buildClearance(){
-for(let y=0;y<MH;y++)for(let x=0;x<MW;x++){
-if(!passable(x,y)){CLR[y][x]=0;continue;}
-let c=1;
-outer:for(;;){
-for(let dy=-c;dy<=c;dy++)for(let dx=-c;dx<=c;dx++){
-if(Math.abs(dx)!==c&&Math.abs(dy)!==c)continue;
-if(!passable(x+dx,y+dy)){break outer;}
-}
-c++;if(c>8)break;
-}
-CLR[y][x]=c;
-}
-})();
+const DIRS = [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[-1,1],[1,-1],[1,1]];
+const DCOST = [1,1,1,1,1.414,1.414,1.414,1.414];
 
-// cells/px per unit size in grid units (half-size in cells, ceiling)
-function unitClearanceNeeded(u){return Math.ceil(u.size/CELL)+1;}
-
-function passableForUnit(gx,gy,u){
-if(!passable(gx,gy))return false;
-return CLR[gy][gx]>=unitClearanceNeeded(u);
+function heuristic(r1,c1,r2,c2) {
+const dr = Math.abs(r1-r2), dc = Math.abs(c1-c2);
+return Math.max(dr,dc) + 0.414 * Math.min(dr,dc);
 }
 
-// ── A* with clearance ─────────────────────────────────────
-function astar(sx,sy,ex,ey,u){
-// Try strict clearance first, fall back to standard passable
-for(const useClr of[true,false]){
-const ok=(gx,gy)=>useClr?passableForUnit(gx,gy,u):passable(gx,gy);
-if(!ok(ex,ey))continue;
-const K=(x,y)=>y*MW+x;
-const open=new Map(),closed=new Set(),g=new Map(),from=new Map();
-g.set(K(sx,sy),0);
-open.set(K(sx,sy),{x:sx,y:sy,f:Math.abs(sx-ex)+Math.abs(sy-ey)});
-const D=[[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[1,-1],[-1,1],[1,1]];
-let result=null;
-for(let iter=0;iter<10000&&open.size>0;iter++){
-let best=null;for(const v of open.values())if(!best||v.f<best.f)best=v;
-const cur=best,ck=K(cur.x,cur.y);
-open.delete(ck);closed.add(ck);
-if(cur.x===ex&&cur.y===ey){
-const path=[];let c=ck;
-while(from.has(c)){path.unshift({x:c%MW,y:Math.floor(c/MW)});c=from.get(c);}
-path.unshift({x:sx,y:sy});result=path;break;
+function cellKey(r,c) { return r * COLS + c; }
+
+function astar(grid, clearance, sr, sc, er, ec, minClear, occupiedSet) {
+if (sr === er && sc === ec) return [{r:sr,c:sc}];
+if (er < 0 || er >= ROWS || ec < 0 || ec >= COLS) return null;
+if (IMPASSABLE.has(grid[er]?.[ec])) return null;
+
+const open = [];
+const gScore = new Map();
+const parent = new Map();
+const closed = new Set();
+const sk = cellKey(sr,sc);
+const ek = cellKey(er,ec);
+gScore.set(sk, 0);
+open.push({r:sr,c:sc,f:heuristic(sr,sc,er,ec)});
+
+const push = (n) => {
+open.push(n);
+let i = open.length-1;
+while(i>0){ const p=(i-1)>>1; if(open[p].f<=open[i].f)break; [open[p],open[i]]=[open[i],open[p]]; i=p; }
+};
+const pop = () => {
+const t=open[0], l=open.pop();
+if(open.length>0){ open[0]=l; let i=0; while(true){ let m=i; const a=2*i+1,b=2*i+2;
+if(a<open.length&&open[a].f<open[m].f)m=a; if(b<open.length&&open[b].f<open[m].f)m=b;
+if(m===i)break; [open[m],open[i]]=[open[i],open[m]]; i=m; }}
+return t;
+};
+
+let iter = 0;
+while(open.length > 0 && iter++ < 10000) {
+const cur = pop();
+const ck = cellKey(cur.r, cur.c);
+if(closed.has(ck)) continue;
+closed.add(ck);
+if(ck === ek) {
+const path = [];
+let k = ck;
+while(k !== undefined) { path.push({r:Math.floor(k/COLS),c:k%COLS}); k=parent.get(k); }
+path.reverse();
+return path;
 }
-for(const [dx,dy] of D){
-const nx=cur.x+dx,ny=cur.y+dy,nk=K(nx,ny);
-if(!ok(nx,ny)||closed.has(nk))continue;
-if(Math.abs(dx)+Math.abs(dy)===2&&(!ok(cur.x+dx,cur.y)||!ok(cur.x,cur.y+dy)))continue;
-const ng=(g.get(ck)||0)+(Math.abs(dx)+Math.abs(dy)===2?1.414:1);
-if(ng<(g.get(nk)||Infinity)){
-g.set(nk,ng);from.set(nk,ck);
-open.set(nk,{x:nx,y:ny,f:ng+Math.abs(nx-ex)+Math.abs(ny-ey)});
+const cg = gScore.get(ck);
+for(let d=0;d<8;d++){
+const nr=cur.r+DIRS[d][0], nc=cur.c+DIRS[d][1];
+if(nr<0||nr>=ROWS||nc<0||nc>=COLS) continue;
+if(IMPASSABLE.has(grid[nr][nc])) continue;
+const nk = cellKey(nr,nc);
+if(closed.has(nk)) continue;
+if(clearance[nr][nc] < minClear) continue;
+let extraCost = 0;
+if(occupiedSet.has(nk) && nk !== ek) extraCost = 20;
+if(d>=4) {
+const ar=cur.r+DIRS[d][0], ac=cur.c;
+const br=cur.r, bc=cur.c+DIRS[d][1];
+if(IMPASSABLE.has(grid[ar]?.[ac])||IMPASSABLE.has(grid[br]?.[bc])) continue;
+}
+const ng = cg + DCOST[d] + extraCost;
+const prev = gScore.get(nk);
+if(prev !== undefined && ng >= prev) continue;
+gScore.set(nk, ng);
+parent.set(nk, ck);
+push({r:nr,c:nc,f:ng+heuristic(nr,nc,er,ec)});
 }
 }
-}
-if(result)return result;
-}
+if(minClear > 1) return astar(grid,clearance,sr,sc,er,ec,1,occupiedSet);
 return null;
 }
 
-function los(a,b){
-let x0=a.x,y0=a.y,x1=b.x,y1=b.y;
-const dx=Math.abs(x1-x0),dy=Math.abs(y1-y0),sx=x0<x1?1:-1,sy=y0<y1?1:-1;
-let err=dx-dy;
-while(true){if(!passable(x0,y0))return false;if(x0===x1&&y0===y1)return true;const e2=2*err;if(e2>-dy){err-=dy;x0+=sx;}if(e2<dx){err+=dx;y0+=sy;}}
+function drawSoldier(ctx, x, y, angle, selected) {
+ctx.save(); ctx.translate(x,y); ctx.rotate(angle);
+ctx.fillStyle=’#556b2f’;
+ctx.beginPath(); ctx.ellipse(0,0,4.5,6,0,0,Math.PI*2); ctx.fill();
+ctx.strokeStyle=’#2d3d1a’; ctx.lineWidth=0.5; ctx.stroke();
+ctx.fillStyle=’#4a5d23’;
+ctx.beginPath(); ctx.arc(0,-3,3.5,0,Math.PI*2); ctx.fill();
+ctx.strokeStyle=’#2d3d1a’; ctx.stroke();
+ctx.strokeStyle=’#1a1a1a’; ctx.lineWidth=1.2;
+ctx.beginPath(); ctx.moveTo(2,-1); ctx.lineTo(2,-9); ctx.stroke();
+ctx.fillStyle=’#3a8’; ctx.beginPath(); ctx.arc(0,-3,1.5,0,Math.PI*2); ctx.fill();
+ctx.restore();
+if(selected){
+ctx.strokeStyle=’#0f0’; ctx.lineWidth=1.5; ctx.setLineDash([3,2]);
+ctx.beginPath(); ctx.arc(x,y,9,0,Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
 }
-function smooth(path){
-if(!path||path.length<3)return path||[];
-const r=[path[0]];let a=0;
-for(let i=2;i<path.length;i++){if(!los(path[a],path[i])){r.push(path[i-1]);a=i-1;}}
-r.push(path[path.length-1]);return r;
-}
-
-// UNITS
-const SPAWNS=[[4,4],[6,4],[8,4],[4,6],[6,6],[14,4],[16,4],[18,4],[14,6],[16,6]];
-const units=[];
-for(let i=0;i<10;i++){
-const [gx,gy]=SPAWNS[i];
-units.push({id:i,type:i<5?‘soldier’:‘tank’,x:gx*CELL+CELL/2,y:gy*CELL+CELL/2,
-angle:Math.PI/2,turretAngle:Math.PI/2,sel:false,path:[],pi:0,moving:false,
-speed:i<5?80:60,size:i<5?11:17});
 }
 
-// DRAW SOLDIER
-function drawSoldier(c,x,y,angle,sel,s){
-s=s||1;
-c.save();c.translate(x,y);c.rotate(angle);
-c.fillStyle=‘rgba(0,0,0,0.2)’;c.beginPath();c.ellipse(1*s,2*s,9*s,6*s,0,0,Math.PI*2);c.fill();
-c.fillStyle=’#3a4818’;c.fillRect(-5*s,5*s,4*s,7*s);c.fillRect(1*s,5*s,4*s,7*s);
-c.fillStyle=’#1a1208’;c.fillRect(-5*s,11*s,4*s,3*s);c.fillRect(1*s,11*s,4*s,3*s);
-c.fillStyle=sel?’#7a9838’:’#4a6020’;c.beginPath();c.roundRect(-6*s,-5*s,12*s,12*s,2*s);c.fill();
-c.fillStyle=’#2e3a10’;c.fillRect(-5*s,-4*s,10*s,10*s);
-c.strokeStyle=’#1e2808’;c.lineWidth=1.5*s;
-c.beginPath();c.moveTo(-3*s,-4*s);c.lineTo(-3*s,6*s);c.stroke();
-c.beginPath();c.moveTo(3*s,-4*s);c.lineTo(3*s,6*s);c.stroke();
-c.beginPath();c.moveTo(-5*s,1*s);c.lineTo(5*s,1*s);c.stroke();
-c.fillStyle=’#1e2808’;c.fillRect(-5*s,1*s,4*s,4*s);c.fillRect(1*s,1*s,4*s,4*s);
-c.fillStyle=’#4a6020’;c.fillRect(-10*s,-3*s,5*s,5*s);c.fillRect(5*s,-3*s,5*s,5*s);
-c.fillStyle=’#1c1c14’;c.fillRect(-1.5*s,-16*s,3*s,16*s);
-c.fillStyle=’#141410’;c.fillRect(-1*s,-20*s,2*s,6*s);
-c.fillStyle=’#282820’;c.fillRect(-2*s,-13*s,4*s,5*s);
-c.fillStyle=’#5a3810’;c.fillRect(-2*s,-5*s,4*s,6*s);
-c.fillStyle=’#2e3a10’;c.beginPath();c.arc(0,-7*s,5*s,0,Math.PI*2);c.fill();
-c.fillStyle=’#222e0c’;c.beginPath();c.ellipse(0,-7*s,6.5*s,2*s,0,0,Math.PI);c.fill();
-c.fillStyle=’#c09060’;c.beginPath();c.arc(0,-7.5*s,3.2*s,0,Math.PI*2);c.fill();
-c.fillStyle=‘rgba(60,160,200,0.55)’;c.fillRect(-3.5*s,-9.5*s,7*s,2.5*s);
-c.strokeStyle=’#444’;c.lineWidth=0.5*s;c.strokeRect(-3.5*s,-9.5*s,7*s,2.5*s);
-if(sel){c.strokeStyle=’#00ff88’;c.lineWidth=2;c.beginPath();c.arc(0,0,15*s,0,Math.PI*2);c.stroke();}
-c.restore();
+function drawTank(ctx, x, y, bodyAngle, turretAngle, selected) {
+ctx.save(); ctx.translate(x,y); ctx.rotate(bodyAngle);
+ctx.fillStyle=’#2a2a2a’; ctx.fillRect(-9,-7,18,3); ctx.fillRect(-9,4,18,3);
+ctx.strokeStyle=’#444’; ctx.lineWidth=0.5;
+for(let i=-8;i<9;i+=3){ ctx.beginPath();ctx.moveTo(i,-7);ctx.lineTo(i,-4);ctx.stroke();
+ctx.beginPath();ctx.moveTo(i,4);ctx.lineTo(i,7);ctx.stroke(); }
+ctx.fillStyle=’#5a6b3a’;
+ctx.beginPath(); ctx.moveTo(-7,-5); ctx.lineTo(9,-4); ctx.lineTo(9,4); ctx.lineTo(-7,5); ctx.closePath(); ctx.fill();
+ctx.strokeStyle=’#3a4a25’; ctx.lineWidth=0.7; ctx.stroke();
+ctx.fillStyle=’#4a5a2d’; ctx.fillRect(-7,-3,5,6);
+ctx.restore();
+ctx.save(); ctx.translate(x,y); ctx.rotate(turretAngle);
+ctx.fillStyle=’#6a7b4a’; ctx.beginPath(); ctx.arc(0,0,5,0,Math.PI*2); ctx.fill();
+ctx.strokeStyle=’#3a4a25’; ctx.lineWidth=0.7; ctx.stroke();
+ctx.fillStyle=’#3a3a3a’; ctx.fillRect(4,-1.2,10,2.4);
+ctx.strokeStyle=’#222’; ctx.lineWidth=0.5; ctx.strokeRect(4,-1.2,10,2.4);
+ctx.fillStyle=’#2a2a2a’; ctx.fillRect(13,-1.8,2,3.6);
+ctx.fillStyle=’#3a8’; ctx.beginPath(); ctx.arc(0,0,2,0,Math.PI*2); ctx.fill();
+ctx.restore();
+if(selected){
+ctx.strokeStyle=’#0f0’; ctx.lineWidth=1.5; ctx.setLineDash([3,2]);
+ctx.beginPath(); ctx.arc(x,y,14,0,Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+}
 }
 
-// DRAW TANK
-function drawTank(c,x,y,angle,turretAngle,sel,s){
-s=s||1;
-c.save();c.translate(x,y);
-c.fillStyle=‘rgba(0,0,0,0.25)’;c.beginPath();c.ellipse(3*s,5*s,22*s,14*s,angle,0,Math.PI*2);c.fill();
-c.restore();
-// hull
-c.save();c.translate(x,y);c.rotate(angle);
-// left track
-c.fillStyle=’#252518’;c.beginPath();c.roundRect(-20*s,-20*s,7*s,40*s,3*s);c.fill();
-c.fillStyle=’#353528’;for(let i=0;i<10;i++)c.fillRect(-20*s,-19*s+i*4*s,7*s,2*s);
-c.fillStyle=’#3a3828’;c.beginPath();c.arc(-16.5*s,-17*s,4.5*s,0,Math.PI*2);c.fill();c.beginPath();c.arc(-16.5*s,17*s,4.5*s,0,Math.PI*2);c.fill();
-for(let i=0;i<3;i++){c.fillStyle=’#303020’;c.beginPath();c.arc(-16.5*s,-8*s+i*8*s,3.5*s,0,Math.PI*2);c.fill();c.fillStyle=’#1a1a10’;c.beginPath();c.arc(-16.5*s,-8*s+i*8*s,1.5*s,0,Math.PI*2);c.fill();}
-// right track
-c.fillStyle=’#252518’;c.beginPath();c.roundRect(13*s,-20*s,7*s,40*s,3*s);c.fill();
-c.fillStyle=’#353528’;for(let i=0;i<10;i++)c.fillRect(13*s,-19*s+i*4*s,7*s,2*s);
-c.fillStyle=’#3a3828’;c.beginPath();c.arc(16.5*s,-17*s,4.5*s,0,Math.PI*2);c.fill();c.beginPath();c.arc(16.5*s,17*s,4.5*s,0,Math.PI*2);c.fill();
-for(let i=0;i<3;i++){c.fillStyle=’#303020’;c.beginPath();c.arc(16.5*s,-8*s+i*8*s,3.5*s,0,Math.PI*2);c.fill();c.fillStyle=’#1a1a10’;c.beginPath();c.arc(16.5*s,-8*s+i*8*s,1.5*s,0,Math.PI*2);c.fill();}
-// hull body
-c.fillStyle=sel?’#7a8848’:’#4e5a28’;
-c.beginPath();c.moveTo(-12*s,-20*s);c.lineTo(12*s,-20*s);c.lineTo(14*s,-10*s);c.lineTo(14*s,16*s);c.lineTo(-14*s,16*s);c.lineTo(-14*s,-10*s);c.closePath();c.fill();
-c.strokeStyle=‘rgba(0,0,0,0.35)’;c.lineWidth=1;
-c.beginPath();c.moveTo(-14*s,-2*s);c.lineTo(14*s,-2*s);c.stroke();
-c.beginPath();c.moveTo(-12*s,-20*s);c.lineTo(-14*s,-10*s);c.stroke();
-c.beginPath();c.moveTo(12*s,-20*s);c.lineTo(14*s,-10*s);c.stroke();
-c.fillStyle=‘rgba(255,255,255,0.06)’;c.beginPath();c.moveTo(-11*s,-19*s);c.lineTo(11*s,-19*s);c.lineTo(13*s,-10*s);c.lineTo(-13*s,-10*s);c.closePath();c.fill();
-c.fillStyle=’#181810’;c.fillRect(-9*s,13*s,3*s,5*s);c.fillRect(6*s,13*s,3*s,5*s);
-c.fillStyle=‘rgba(60,60,40,0.25)’;c.beginPath();c.arc(-7.5*s,17*s,3*s,0,Math.PI*2);c.fill();c.beginPath();c.arc(7.5*s,17*s,3*s,0,Math.PI*2);c.fill();
-c.fillStyle=’#1a1a10’;c.fillRect(-9*s,11*s,18*s,3*s);
-c.restore();
-// turret
-c.save();c.translate(x,y);c.rotate(turretAngle);
-c.fillStyle=’#333820’;c.beginPath();c.arc(0,0,9*s,0,Math.PI*2);c.fill();
-c.fillStyle=sel?’#6a7838’:’#3e4c1e’;
-c.beginPath();c.moveTo(-9*s,6*s);c.lineTo(9*s,6*s);c.lineTo(10*s,-2*s);c.lineTo(7*s,-9*s);c.lineTo(-7*s,-9*s);c.lineTo(-10*s,-2*s);c.closePath();c.fill();
-c.strokeStyle=‘rgba(0,0,0,0.3)’;c.lineWidth=1;
-c.beginPath();c.moveTo(-9*s,0);c.lineTo(9*s,0);c.stroke();
-c.fillStyle=’#2a3010’;c.beginPath();c.arc(0,0,4*s,0,Math.PI*2);c.fill();
-c.fillStyle=‘rgba(100,180,100,0.18)’;c.beginPath();c.arc(-0.5*s,-0.5*s,2.5*s,0,Math.PI*2);c.fill();
-c.fillStyle=’#1a1a0e’;c.fillRect(-1*s,-16*s,2*s,8*s);
-c.fillStyle=’#222218’;c.fillRect(-2*s,-14*s,4*s,4*s);
-c.fillStyle=’#2a2a18’;c.fillRect(-3.5*s,-9*s,7*s,5*s);
-c.fillStyle=’#1a1a10’;c.fillRect(-2.2*s,-34*s,4.4*s,27*s);
-c.fillStyle=’#222215’;c.fillRect(-3.8*s,-36*s,7.6*s,3*s);c.fillRect(-2.8*s,-38*s,5.6*s,2*s);
-c.fillStyle=’#0a0a06’;c.fillRect(-1*s,-38*s,2*s,40*s);
-if(sel){c.strokeStyle=’#00ff88’;c.lineWidth=2;c.beginPath();c.arc(0,0,21*s,0,Math.PI*2);c.stroke();}
-c.restore();
+function lerpAngle(a, b, t) {
+let d = b - a;
+while(d > Math.PI) d -= Math.PI*2;
+while(d < -Math.PI) d += Math.PI*2;
+return a + d * Math.min(t, 1);
 }
 
-// CAMERA
-let cam={x:PW/2,y:PH/3,z:1};
-function clamp(){const hw=cv.width/cam.z/2,hh=cv.height/cam.z/2;cam.x=Math.max(hw,Math.min(PW-hw,cam.x));cam.y=Math.max(hh,Math.min(PH-hh,cam.y));}
-clamp();
-function s2w(sx,sy){return{x:(sx-cv.width/2)/cam.z+cam.x,y:(sy-cv.height/2)/cam.z+cam.y};}
+export default function TacticalGame() {
+const canvasRef = useRef(null);
+const mapCanvasRef = useRef(null);
+const gridRef = useRef(null);
+const clearanceRef = useRef(null);
+const unitsRef = useRef([]);
+const occRef = useRef(null);
+const selectedRef = useRef(new Set());
+const [selected, setSelected] = useState(new Set());
+const cameraRef = useRef({ x:0, y:0, zoom:1 });
+const touchRef = useRef({ panning:false, lx:0, ly:0, pinch:0, t0:0, sp:null, moved:false });
+const rafRef = useRef(null);
+const ltRef = useRef(0);
+const containerRef = useRef(null);
+const [cSize, setCSize] = useState({w:800,h:600});
+const markersRef = useRef([]);
 
-// HUD
-function buildHUD(){
-const sl=document.getElementById(‘slots’);sl.innerHTML=’’;
+useEffect(() => {
+const grid = generateMap();
+gridRef.current = grid;
+clearanceRef.current = buildClearance(grid);
+const occ = Array.from({length:ROWS}, ()=>Array(COLS).fill(-1));
+occRef.current = occ;
+
+```
+const mc = document.createElement('canvas');
+mc.width = MAP_W; mc.height = MAP_H;
+const mx = mc.getContext('2d');
+for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+  const t = grid[r][c];
+  mx.fillStyle = TERRAIN_COLORS[t];
+  mx.fillRect(c*CELL, r*CELL, CELL, CELL);
+  if(t===TERRAIN.GRASS){
+    mx.fillStyle='#5a8c4f';
+    for(let i=0;i<3;i++){mx.fillRect(c*CELL+Math.random()*CELL, r*CELL+Math.random()*CELL, 1, 3);}
+  } else if(t===TERRAIN.FOREST){
+    mx.fillStyle='#1a4a1a'; const cx2=c*CELL+CELL/2, cy2=r*CELL+CELL/2;
+    mx.beginPath();mx.arc(cx2,cy2,12,0,Math.PI*2);mx.fill();
+    mx.fillStyle='#2d6a27';mx.beginPath();mx.arc(cx2-3,cy2-2,8,0,Math.PI*2);mx.fill();
+    mx.beginPath();mx.arc(cx2+4,cy2+1,7,0,Math.PI*2);mx.fill();
+  } else if(t===TERRAIN.WATER){
+    mx.fillStyle='#3a7ab6';mx.fillRect(c*CELL+3,r*CELL+CELL/2-1,CELL-6,2);
+    mx.fillStyle='#4a8ac6';mx.fillRect(c*CELL+8,r*CELL+CELL/2+6,CELL-16,1.5);
+  } else if(t===TERRAIN.ROCK){
+    mx.fillStyle='#7a7a7a';mx.beginPath();mx.arc(c*CELL+12,r*CELL+14,8,0,Math.PI*2);mx.fill();
+    mx.fillStyle='#5a5a5a';mx.beginPath();mx.arc(c*CELL+22,r*CELL+20,6,0,Math.PI*2);mx.fill();
+  } else if(t===TERRAIN.WALL){
+    mx.strokeStyle='#555';mx.lineWidth=1;mx.strokeRect(c*CELL+2,r*CELL+2,CELL-4,CELL-4);
+    mx.fillStyle='#4a4a4a';mx.fillRect(c*CELL+4,r*CELL+4,CELL/2-4,CELL/2-4);
+  } else if(t===TERRAIN.RUBBLE){
+    mx.fillStyle='#7a6d5b';
+    for(let i=0;i<5;i++){mx.fillRect(c*CELL+Math.random()*28+4,r*CELL+Math.random()*28+4,3+Math.random()*4,2+Math.random()*3);}
+  }
+  mx.strokeStyle='rgba(0,0,0,0.08)';mx.lineWidth=0.5;mx.strokeRect(c*CELL,r*CELL,CELL,CELL);
+  if(IMPASSABLE.has(t)){mx.strokeStyle='rgba(200,50,50,0.4)';mx.lineWidth=1.5;mx.strokeRect(c*CELL+1,r*CELL+1,CELL-2,CELL-2);}
+}
+mapCanvasRef.current = mc;
+
+const findOpen = (sr,sc,avoid) => {
+  for(let dr=0;dr<20;dr++) for(let dc=0;dc<20;dc++){
+    const r2=sr+dr,c2=sc+dc;
+    if(r2>=0&&r2<ROWS&&c2>=0&&c2<COLS&&!IMPASSABLE.has(grid[r2][c2])&&!avoid.has(r2+','+c2)){
+      avoid.add(r2+','+c2); return {r:r2,c:c2};
+    }
+  }
+  return {r:sr,c:sc};
+};
+const used = new Set();
+const units = [];
+for(let i=0;i<5;i++){
+  const p=findOpen(2+i*4,2,used);
+  units.push({id:i,type:'soldier',r:p.r,c:p.c,x:p.c*CELL+CELL/2,y:p.r*CELL+CELL/2,
+    angle:0,speed:80,size:11,minClear:1,
+    state:'idle',path:null,pathIdx:0,goalR:p.r,goalC:p.c,
+    nextR:p.r,nextC:p.c,waitTime:0,reroutes:0
+  });
+  occ[p.r][p.c]=i;
+}
+for(let i=0;i<5;i++){
+  const p=findOpen(5+i*4,18,used);
+  const id=i+5;
+  units.push({id,type:'tank',r:p.r,c:p.c,x:p.c*CELL+CELL/2,y:p.r*CELL+CELL/2,
+    angle:0,turretAngle:0,speed:60,size:17,minClear:1,
+    state:'idle',path:null,pathIdx:0,goalR:p.r,goalC:p.c,
+    nextR:p.r,nextC:p.c,waitTime:0,reroutes:0
+  });
+  occ[p.r][p.c]=id;
+}
+unitsRef.current = units;
+cameraRef.current.x = units[0].x - cSize.w/2;
+cameraRef.current.y = units[0].y - cSize.h/2;
+```
+
+}, []);
+
+useEffect(()=>{
+const resize=()=>{if(containerRef.current)setCSize({w:containerRef.current.clientWidth,h:containerRef.current.clientHeight});};
+resize(); window.addEventListener(‘resize’,resize); return()=>window.removeEventListener(‘resize’,resize);
+},[]);
+
+function getOccupiedSet(excludeId) {
+const s = new Set();
+const occ = occRef.current;
+for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+if(occ[r][c] !== -1 && occ[r][c] !== excludeId) s.add(cellKey(r,c));
+}
+return s;
+}
+
+function tryClaimCell(unit, nr, nc) {
+const occ = occRef.current;
+if(nr<0||nr>=ROWS||nc<0||nc>=COLS) return false;
+if(IMPASSABLE.has(gridRef.current[nr][nc])) return false;
+const occupant = occ[nr][nc];
+if(occupant === -1 || occupant === unit.id) {
+occ[nr][nc] = unit.id;
+unit.nextR = nr; unit.nextC = nc;
+return true;
+}
+return false;
+}
+
+function arriveAtCell(unit) {
+const occ = occRef.current;
+if(unit.r !== unit.nextR || unit.c !== unit.nextC) {
+if(occ[unit.r][unit.c] === unit.id) occ[unit.r][unit.c] = -1;
+}
+unit.r = unit.nextR; unit.c = unit.nextC;
+occ[unit.r][unit.c] = unit.id;
+}
+
+useEffect(() => {
+const loop = (time) => {
+rafRef.current = requestAnimationFrame(loop);
+const dt = Math.min((time - (ltRef.current||time))/1000, 0.05);
+ltRef.current = time;
+
+```
+  const canvas = canvasRef.current;
+  if(!canvas || !mapCanvasRef.current || !gridRef.current || !occRef.current) return;
+  const ctx = canvas.getContext('2d');
+  const cam = cameraRef.current;
+  const units = unitsRef.current;
+  const grid = gridRef.current;
+  const cl = clearanceRef.current;
+  const occ = occRef.current;
+
+  for(const u of units) {
+    if(u.state === 'idle') continue;
+
+    if(u.state === 'waiting') {
+      u.waitTime += dt;
+      if(u.waitTime > 0.35) { u.state = 'rerouting'; u.waitTime = 0; }
+      continue;
+    }
+
+    if(u.state === 'rerouting') {
+      u.reroutes++;
+      if(u.reroutes > 10) { u.state='idle'; u.path=null; u.reroutes=0; continue; }
+      const occSet = getOccupiedSet(u.id);
+      const np = astar(grid, cl, u.r, u.c, u.goalR, u.goalC, u.minClear, occSet);
+      if(np && np.length > 1) { u.path=np; u.pathIdx=1; u.state='moving_to_cell'; }
+      else { u.waitTime=0; u.state='waiting'; }
+      continue;
+    }
+
+    // moving_to_cell
+    if(!u.path || u.pathIdx >= u.path.length) {
+      u.state='idle'; u.path=null; u.reroutes=0; continue;
+    }
+
+    const target = u.path[u.pathIdx];
+
+    // Need to claim next cell
+    if(u.nextR === u.r && u.nextC === u.c) {
+      if(!tryClaimCell(u, target.r, target.c)) {
+        u.state='waiting'; u.waitTime=0; continue;
+      }
+    }
+
+    const tx = u.nextC * CELL + CELL/2;
+    const ty = u.nextR * CELL + CELL/2;
+    const dx = tx - u.x, dy = ty - u.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+
+    if(dist < 1.5) {
+      arriveAtCell(u);
+      u.x = tx; u.y = ty;
+      u.pathIdx++;
+      u.reroutes = 0;
+      if(u.pathIdx >= u.path.length) { u.state='idle'; u.path=null; }
+    } else {
+      const step = u.speed * dt;
+      const ratio = Math.min(step / dist, 1);
+      u.x += dx * ratio; u.y += dy * ratio;
+      const ta = Math.atan2(dy, dx);
+      u.angle = lerpAngle(u.angle, ta, dt*8);
+      if(u.type==='tank') u.turretAngle = lerpAngle(u.turretAngle, ta, dt*5);
+    }
+  }
+
+  // HARD separation — emergency push if overlap
+  for(let i=0;i<units.length;i++){
+    for(let j=i+1;j<units.length;j++){
+      const a=units[i], b=units[j];
+      const dx=b.x-a.x, dy=b.y-a.y;
+      const dist=Math.sqrt(dx*dx+dy*dy);
+      const minDist = (a.size + b.size) * 0.55;
+      if(dist < minDist && dist > 0.01) {
+        const overlap = minDist - dist;
+        const nx = dx/dist, ny = dy/dist;
+        const push = overlap * 0.6;
+        a.x -= nx * push; a.y -= ny * push;
+        b.x += nx * push; b.y += ny * push;
+      }
+    }
+  }
+
+  const markers = markersRef.current;
+  for(let i=markers.length-1;i>=0;i--){ markers[i].life-=dt; if(markers[i].life<=0) markers.splice(i,1); }
+
+  // RENDER
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.save();
+  ctx.scale(cam.zoom,cam.zoom);
+  ctx.translate(-cam.x,-cam.y);
+  ctx.drawImage(mapCanvasRef.current, 0, 0);
+
+  for(const m of markers){
+    const a2 = Math.min(m.life/0.5, 1);
+    ctx.strokeStyle='rgba(0,255,100,'+a2*0.7+')'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(m.x,m.y,8+(1-a2)*12,0,Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(m.x-4,m.y);ctx.lineTo(m.x+4,m.y);
+    ctx.moveTo(m.x,m.y-4);ctx.lineTo(m.x,m.y+4); ctx.stroke();
+  }
+
+  const sel = selectedRef.current;
+  for(const u of units){
+    if(sel.has(u.id)&&u.path&&u.pathIdx<u.path.length){
+      ctx.strokeStyle='rgba(0,255,100,0.3)';ctx.lineWidth=1.5;ctx.setLineDash([4,4]);
+      ctx.beginPath();ctx.moveTo(u.x,u.y);
+      for(let i=u.pathIdx;i<u.path.length;i++) ctx.lineTo(u.path[i].c*CELL+CELL/2,u.path[i].r*CELL+CELL/2);
+      ctx.stroke();ctx.setLineDash([]);
+    }
+  }
+
+  const sorted = [...units].sort((a2,b2)=>a2.y-b2.y);
+  for(const u of sorted){
+    const isSel = sel.has(u.id);
+    if(u.type==='soldier') drawSoldier(ctx,u.x,u.y,u.angle-Math.PI/2,isSel);
+    else drawTank(ctx,u.x,u.y,u.angle,u.turretAngle,isSel);
+    if(u.state==='waiting'||u.state==='rerouting'){
+      ctx.fillStyle=u.state==='rerouting'?'rgba(255,150,0,0.8)':'rgba(255,200,0,0.7)';
+      ctx.beginPath();ctx.arc(u.x,u.y-u.size-4,3,0,Math.PI*2);ctx.fill();
+    }
+  }
+
+  ctx.restore();
+};
+rafRef.current = requestAnimationFrame(loop);
+return()=>cancelAnimationFrame(rafRef.current);
+```
+
+},[cSize]);
+
+const getCP = useCallback((cx,cy)=>{
+const r2=canvasRef.current?.getBoundingClientRect();
+return r2?{x:cx-r2.left,y:cy-r2.top}:{x:0,y:0};
+},[]);
+const s2w = useCallback((sx,sy)=>{
+const c2=cameraRef.current;
+return{x:sx/c2.zoom+c2.x, y:sy/c2.zoom+c2.y};
+},[]);
+
+const handleTap = useCallback((wx,wy)=>{
+const units=unitsRef.current, sel=selectedRef.current;
 for(const u of units){
-const div=document.createElement(‘div’);
-div.className=‘slot’+(u.sel?’ sel’:’’);
-const ic=document.createElement(‘canvas’);ic.width=48;ic.height=48;
-const ic2=ic.getContext(‘2d’);
-if(u.type===‘soldier’)drawSoldier(ic2,24,28,-Math.PI/2,false,0.58);
-else drawTank(ic2,24,26,-Math.PI/2,-Math.PI/2,false,0.52);
-div.appendChild(ic);
-const lbl=document.createElement(‘div’);lbl.className=‘lbl’;
-lbl.textContent=(u.type===‘soldier’?‘SOL’:‘TNK’)+(u.id+1);
-div.appendChild(lbl);
-const uid=u.id;
-div.addEventListener(‘pointerdown’,e=>{e.preventDefault();e.stopPropagation();toggle(uid);},{passive:false});
-sl.appendChild(div);
+const dx=wx-u.x, dy=wy-u.y, r2=u.type===‘tank’?15:10;
+if(dx*dx+dy*dy<r2*r2){
+const ns=new Set(sel);
+if(ns.has(u.id))ns.delete(u.id);else ns.add(u.id);
+selectedRef.current=ns; setSelected(new Set(ns)); return;
 }
 }
-buildHUD();
+if(sel.size===0)return;
+const tc=Math.floor(wx/CELL), tr=Math.floor(wy/CELL);
+if(tr<0||tr>=ROWS||tc<0||tc>=COLS)return;
+if(IMPASSABLE.has(gridRef.current[tr][tc]))return;
 
-document.getElementById(‘btnAll’).addEventListener(‘pointerdown’,e=>{e.preventDefault();units.forEach(u=>u.sel=true);buildHUD();},{passive:false});
-document.getElementById(‘btnNone’).addEventListener(‘pointerdown’,e=>{e.preventDefault();units.forEach(u=>u.sel=false);buildHUD();},{passive:false});
+```
+markersRef.current.push({x:tc*CELL+CELL/2,y:tr*CELL+CELL/2,life:1.5});
 
-function toggle(id){units[id].sel=!units[id].sel;buildHUD();}
+const selUnits = units.filter(u=>sel.has(u.id));
+const targets = [];
+const usedC = new Set();
+const queue = [{r:tr,c:tc}];
+const visited = new Set();
+visited.add(cellKey(tr,tc));
+while(queue.length > 0 && targets.length < selUnits.length) {
+  const cur = queue.shift();
+  if(cur.r>=0&&cur.r<ROWS&&cur.c>=0&&cur.c<COLS&&!IMPASSABLE.has(gridRef.current[cur.r]?.[cur.c])){
+    const k = cur.r+','+cur.c;
+    if(!usedC.has(k)){ usedC.add(k); targets.push(cur); }
+  }
+  for(const [dr,dc] of DIRS){
+    const nr=cur.r+dr, nc=cur.c+dc;
+    if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS){
+      const nk=cellKey(nr,nc);
+      if(!visited.has(nk)){visited.add(nk);queue.push({r:nr,c:nc});}
+    }
+  }
+}
 
-// MOVE
-const FAN=[[0,0],[-2,0],[2,0],[0,-2],[0,2],[-2,-2],[2,-2],[-2,2],[2,2],[-4,0]];
-function moveSelected(wx,wy){
-const sel=units.filter(u=>u.sel);if(!sel.length)return;
-const tgx=Math.floor(wx/CELL),tgy=Math.floor(wy/CELL);
-sel.forEach((u,i)=>{
-let tx=tgx+(FAN[i]||[0,0])[0],ty=tgy+(FAN[i]||[0,0])[1];
-if(!passable(tx,ty)){const dirs=[[0,0],[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]];for(const[dx,dy]of dirs)if(passable(tx+dx,ty+dy)){tx+=dx;ty+=dy;break;}}
-const raw=astar(Math.floor(u.x/CELL),Math.floor(u.y/CELL),tx,ty);
-if(raw&&raw.length>1){u.path=smooth(raw);u.pi=1;u.moving=true;}
+selUnits.sort((a2,b2)=>{
+  const da=(a2.r-tr)**2+(a2.c-tc)**2;
+  const db=(b2.r-tr)**2+(b2.c-tc)**2;
+  return da-db;
 });
-}
 
-let marker=null;
+const assignedTargets = new Set();
+for(const u of selUnits) {
+  let bestD = Infinity, bestIdx = 0;
+  for(let t=0;t<targets.length;t++){
+    if(assignedTargets.has(t))continue;
+    const d2=(u.r-targets[t].r)**2+(u.c-targets[t].c)**2;
+    if(d2<bestD){bestD=d2;bestIdx=t;}
+  }
+  assignedTargets.add(bestIdx);
+  const tgt = targets[bestIdx];
+  u.goalR = tgt.r; u.goalC = tgt.c;
+  const occSet = getOccupiedSet(u.id);
+  const path = astar(gridRef.current, clearanceRef.current, u.r, u.c, tgt.r, tgt.c, u.minClear, occSet);
+  if(path && path.length > 1){
+    u.path = path; u.pathIdx = 1; u.state='moving_to_cell'; u.waitTime=0; u.reroutes=0;
+  }
+}
+```
 
-// UPDATE
-let last=performance.now();
-function update(dt){
-for(const u of units){
-if(!u.moving||u.pi>=u.path.length)continue;
-const tg=u.path[u.pi];
-const tx=tg.x*CELL+CELL/2,ty=tg.y*CELL+CELL/2;
-const dx=tx-u.x,dy=ty-u.y,dist=Math.hypot(dx,dy);
-let ax=0,ay=0;
-for(const o of units){
-if(o===u)continue;
-const ox=u.x-o.x,oy=u.y-o.y,od=Math.hypot(ox,oy),minD=u.size+o.size+5;
-if(od<minD&&od>0.1){const f=(minD-od)/minD;ax+=ox/od*f*50;ay+=oy/od*f*50;}
-}
-if(dist<12){u.pi++;if(u.pi>=u.path.length){u.moving=false;u.path=[];}}
-else{
-let nx=dx/dist+ax*0.3,ny=dy/dist+ay*0.3;
-const len=Math.hypot(nx,ny)||1;nx/=len;ny/=len;
-u.x+=nx*u.speed*dt;u.y+=ny*u.speed*dt;
-const ta=Math.atan2(ny,nx);
-let da=ta-u.angle;while(da>Math.PI)da-=2*Math.PI;while(da<-Math.PI)da+=2*Math.PI;
-u.angle+=da*Math.min(1,9*dt);
-if(u.type===‘tank’){let dta=ta-u.turretAngle;while(dta>Math.PI)dta-=2*Math.PI;while(dta<-Math.PI)dta+=2*Math.PI;u.turretAngle+=dta*Math.min(1,3*dt);}
-else u.turretAngle=u.angle;
-}
-}
-}
+},[]);
 
-// DRAW
-function draw(){
-const W=cv.width,H=cv.height;
-cx.clearRect(0,0,W,H);
-cx.save();
-cx.translate(W/2-cam.x*cam.z,H/2-cam.y*cam.z);
-cx.scale(cam.z,cam.z);
-cx.drawImage(mc,0,0);
-for(const u of units){
-if(!u.sel||!u.moving||u.path.length<2)continue;
-cx.save();cx.strokeStyle=‘rgba(0,255,136,0.4)’;cx.lineWidth=2/cam.z;cx.setLineDash([6,4]);
-cx.beginPath();cx.moveTo(u.x,u.y);
-for(let i=u.pi;i<u.path.length;i++)cx.lineTo(u.path[i].x*CELL+CELL/2,u.path[i].y*CELL+CELL/2);
-cx.stroke();cx.restore();
-}
-if(marker){
-const age=(Date.now()-marker.t)/600;
-if(age<1){cx.save();cx.globalAlpha=1-age;cx.strokeStyle=’#00ff88’;cx.lineWidth=2;cx.beginPath();cx.arc(marker.x,marker.y,age*22+4,0,Math.PI*2);cx.stroke();cx.restore();}
-else marker=null;
-}
-[…units].sort((a,b)=>a.y-b.y).forEach(u=>{
-if(u.type===‘soldier’)drawSoldier(cx,u.x,u.y,u.angle,u.sel);
-else drawTank(cx,u.x,u.y,u.angle,u.turretAngle,u.sel);
-});
-cx.restore();
-}
+const pDown = useCallback((e)=>{
+const p=getCP(e.clientX,e.clientY);
+const t=touchRef.current;
+t.panning=true;t.lx=e.clientX;t.ly=e.clientY;t.t0=Date.now();t.sp=p;t.moved=false;
+},[getCP]);
+const pMove = useCallback((e)=>{
+const t=touchRef.current;
+if(!t.panning)return;
+const dx=e.clientX-t.lx, dy=e.clientY-t.ly;
+if(Math.abs(dx)>3||Math.abs(dy)>3)t.moved=true;
+const c2=cameraRef.current;
+c2.x-=dx/c2.zoom; c2.y-=dy/c2.zoom;
+c2.x=Math.max(-100,Math.min(MAP_W-cSize.w/c2.zoom+100,c2.x));
+c2.y=Math.max(-100,Math.min(MAP_H-cSize.h/c2.zoom+100,c2.y));
+t.lx=e.clientX;t.ly=e.clientY;
+},[cSize]);
+const pUp = useCallback((e)=>{
+const t=touchRef.current;t.panning=false;
+if(!t.moved&&Date.now()-t.t0<300&&t.sp){const w=s2w(t.sp.x,t.sp.y);handleTap(w.x,w.y);}
+},[s2w,handleTap]);
 
-function loop(ts){
-const dt=Math.min((ts-last)/1000,0.05);last=ts;
-update(dt);draw();requestAnimationFrame(loop);
-}
-requestAnimationFrame(loop);
-
-// INPUT — clean separation of tap vs pan
-let ptrs={};
-let panOn=false,panSX=0,panSY=0,camX0=0,camY0=0;
-let pinchOn=false,pinch0=0,zoom0=1;
-let tap=null;
-
-cv.addEventListener(‘pointerdown’,e=>{
+const onWheel = useCallback((e)=>{
 e.preventDefault();
-ptrs[e.pointerId]={x:e.clientX,y:e.clientY};
-const n=Object.keys(ptrs).length;
-if(n===1){
-panOn=true;panSX=e.clientX;panSY=e.clientY;camX0=cam.x;camY0=cam.y;
-tap={x:e.clientX,y:e.clientY,t:Date.now()};
-}
-if(n===2){
-panOn=false;tap=null;pinchOn=true;
-const pp=Object.values(ptrs);
-pinch0=Math.hypot(pp[0].x-pp[1].x,pp[0].y-pp[1].y);
-zoom0=cam.z;
-}
-},{passive:false});
+const c2=cameraRef.current, p=getCP(e.clientX,e.clientY), w=s2w(p.x,p.y);
+c2.zoom=Math.max(0.3,Math.min(3,c2.zoom*(e.deltaY>0?0.9:1.1)));
+c2.x=w.x-p.x/c2.zoom; c2.y=w.y-p.y/c2.zoom;
+},[getCP,s2w]);
 
-cv.addEventListener(‘pointermove’,e=>{
+const tStart = useCallback((e)=>{
+if(e.touches.length===2){
+const dx=e.touches[0].clientX-e.touches[1].clientX,dy=e.touches[0].clientY-e.touches[1].clientY;
+touchRef.current.pinch=Math.sqrt(dx*dx+dy*dy);touchRef.current.panning=false;
+} else if(e.touches.length===1){
+const p=getCP(e.touches[0].clientX,e.touches[0].clientY);
+const t=touchRef.current;t.panning=true;t.lx=e.touches[0].clientX;t.ly=e.touches[0].clientY;
+t.t0=Date.now();t.sp=p;t.moved=false;
+}
+},[getCP]);
+const tMove = useCallback((e)=>{
 e.preventDefault();
-if(!ptrs[e.pointerId])return;
-ptrs[e.pointerId]={x:e.clientX,y:e.clientY};
-const n=Object.keys(ptrs).length;
-if(panOn&&n===1){
-const dx=e.clientX-panSX,dy=e.clientY-panSY;
-cam.x=camX0-dx/cam.z;cam.y=camY0-dy/cam.z;clamp();
-if(tap&&Math.hypot(dx,dy)>12)tap=null;
+if(e.touches.length===2){
+const dx=e.touches[0].clientX-e.touches[1].clientX,dy=e.touches[0].clientY-e.touches[1].clientY;
+const nd=Math.sqrt(dx*dx+dy*dy),c2=cameraRef.current;
+c2.zoom=Math.max(0.3,Math.min(3,c2.zoom*nd/touchRef.current.pinch));
+touchRef.current.pinch=nd;
+} else if(e.touches.length===1){
+const t=touchRef.current;if(!t.panning)return;
+const dx=e.touches[0].clientX-t.lx,dy=e.touches[0].clientY-t.ly;
+if(Math.abs(dx)>3||Math.abs(dy)>3)t.moved=true;
+const c2=cameraRef.current;c2.x-=dx/c2.zoom;c2.y-=dy/c2.zoom;
+c2.x=Math.max(-100,Math.min(MAP_W-cSize.w/c2.zoom+100,c2.x));
+c2.y=Math.max(-100,Math.min(MAP_H-cSize.h/c2.zoom+100,c2.y));
+t.lx=e.touches[0].clientX;t.ly=e.touches[0].clientY;
 }
-if(pinchOn&&n===2){
-const pp=Object.values(ptrs);
-const d=Math.hypot(pp[0].x-pp[1].x,pp[0].y-pp[1].y);
-cam.z=Math.max(0.3,Math.min(3,zoom0*(d/pinch0)));
+},[cSize]);
+const tEnd = useCallback((e)=>{
+if(e.touches.length===0){
+const t=touchRef.current;t.panning=false;
+if(!t.moved&&Date.now()-t.t0<300&&t.sp){const w=s2w(t.sp.x,t.sp.y);handleTap(w.x,w.y);}
 }
-},{passive:false});
+},[s2w,handleTap]);
 
-cv.addEventListener(‘pointerup’,e=>{
-e.preventDefault();
-const wasTap=tap;
-const wasT=tap?tap.t:0;
-delete ptrs[e.pointerId];
-const n=Object.keys(ptrs).length;
-if(n<2)pinchOn=false;
-if(n===0){
-panOn=false;
-if(wasTap&&(Date.now()-wasT)<350){
-const moved=Math.hypot(e.clientX-wasTap.x,e.clientY-wasTap.y);
-if(moved<15){
-const w=s2w(e.clientX,e.clientY);
-let hit=null;
-for(let i=units.length-1;i>=0;i–){const u=units[i];if(Math.hypot(w.x-u.x,w.y-u.y)<u.size+8){hit=u;break;}}
-if(hit){toggle(hit.id);}
-else if(units.some(u=>u.sel)){moveSelected(w.x,w.y);marker={x:w.x,y:w.y,t:Date.now()};}
-else{units.forEach(u=>u.sel=false);buildHUD();}
-}
-}
-tap=null;
-}
-},{passive:false});
+const toggleUnit = useCallback((id)=>{
+const ns=new Set(selectedRef.current);
+if(ns.has(id))ns.delete(id);else ns.add(id);
+selectedRef.current=ns;setSelected(new Set(ns));
+},[]);
+const selectAll = useCallback(()=>{
+const a2=new Set(unitsRef.current.map(u=>u.id));selectedRef.current=a2;setSelected(new Set(a2));
+},[]);
+const selectNone = useCallback(()=>{
+selectedRef.current=new Set();setSelected(new Set());
+},[]);
 
-cv.addEventListener(‘pointercancel’,e=>{delete ptrs[e.pointerId];tap=null;});
-cv.addEventListener(‘wheel’,e=>{e.preventDefault();cam.z=Math.max(0.3,Math.min(3,cam.z*(e.deltaY>0?0.9:1.1)));},{passive:false});
-</script>
+const units = unitsRef.current;
 
-</body>
-</html>
+return (
+<div ref={containerRef} style={{width:‘100%’,height:‘100vh’,background:’#111’,position:‘relative’,
+overflow:‘hidden’,fontFamily:”‘JetBrains Mono’,‘Courier New’,monospace”,touchAction:‘none’,userSelect:‘none’}}>
+<canvas ref={canvasRef} width={cSize.w} height={cSize.h}
+style={{display:‘block’,width:‘100%’,height:‘100%’}}
+onPointerDown={pDown} onPointerMove={pMove} onPointerUp={pUp} onWheel={onWheel}
+onTouchStart={tStart} onTouchMove={tMove} onTouchEnd={tEnd} />
+
+```
+  <div style={{position:'absolute',bottom:0,left:0,right:0,
+    background:'linear-gradient(transparent,rgba(0,0,0,0.85))',
+    padding:'12px 8px 8px',display:'flex',flexDirection:'column',alignItems:'center',gap:6}}>
+    <div style={{display:'flex',gap:4,flexWrap:'wrap',justifyContent:'center'}}>
+      {units.map(u=>(
+        <div key={u.id} onClick={()=>toggleUnit(u.id)} style={{
+          width:44,height:44,borderRadius:6,
+          background:selected.has(u.id)?'rgba(0,255,100,0.2)':'rgba(255,255,255,0.08)',
+          border:selected.has(u.id)?'2px solid #0f0':'2px solid rgba(255,255,255,0.15)',
+          display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
+          cursor:'pointer',transition:'all 0.15s',position:'relative'
+        }}>
+          <span style={{fontSize:16}}>{u.type==='soldier'?'🪖':'🔲'}</span>
+          <span style={{fontSize:8,color:u.state!=='idle'?'#0f0':'#888',fontWeight:u.state!=='idle'?700:400}}>
+            {u.type==='tank'?'TNK':'SLD'}{u.type==='tank'?u.id-4:u.id+1}
+          </span>
+          {u.state!=='idle'&&(
+            <div style={{position:'absolute',top:2,right:2,width:5,height:5,borderRadius:'50%',
+              background:u.state==='waiting'?'#fa0':'#0f0',animation:'pulse 1s infinite'}}/>
+          )}
+        </div>
+      ))}
+    </div>
+    <div style={{display:'flex',gap:8}}>
+      <button onClick={selectAll} style={{padding:'6px 20px',fontSize:12,fontWeight:700,
+        background:'rgba(0,255,100,0.15)',border:'1px solid rgba(0,255,100,0.4)',
+        color:'#0f0',borderRadius:4,cursor:'pointer',fontFamily:'inherit'}}>ALL</button>
+      <button onClick={selectNone} style={{padding:'6px 20px',fontSize:12,fontWeight:700,
+        background:'rgba(255,100,100,0.15)',border:'1px solid rgba(255,100,100,0.4)',
+        color:'#f66',borderRadius:4,cursor:'pointer',fontFamily:'inherit'}}>NONE</button>
+    </div>
+  </div>
+
+  <div style={{position:'absolute',top:8,left:8,color:'rgba(0,255,100,0.7)',fontSize:10,
+    background:'rgba(0,0,0,0.5)',padding:'4px 8px',borderRadius:4,pointerEvents:'none'}}>
+    {selected.size>0?selected.size+' выбрано — тап на карту = приказ':'Тап на юнита для выбора'}
+  </div>
+  <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}`}</style>
+</div>
+```
+
+);
+}
