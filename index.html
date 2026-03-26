@@ -70,7 +70,9 @@ return Math.max(dr,dc) + 0.414 * Math.min(dr,dc);
 
 function cellKey(r,c) { return r * COLS + c; }
 
-function astar(grid, clearance, sr, sc, er, ec, minClear, occupiedSet) {
+// occupiedSet: cells that are HARD BLOCKED (other units’ current + reserved cells)
+// softOccSet: cells that have moving units — expensive but not blocked
+function astar(grid, clearance, sr, sc, er, ec, minClear, occupiedSet, softOccSet) {
 if (sr === er && sc === ec) return [{r:sr,c:sc}];
 if (er < 0 || er >= ROWS || ec < 0 || ec >= COLS) return null;
 if (IMPASSABLE.has(grid[er]?.[ec])) return null;
@@ -98,7 +100,7 @@ return t;
 };
 
 let iter = 0;
-while(open.length > 0 && iter++ < 10000) {
+while(open.length > 0 && iter++ < 12000) {
 const cur = pop();
 const ck = cellKey(cur.r, cur.c);
 if(closed.has(ck)) continue;
@@ -118,22 +120,34 @@ if(IMPASSABLE.has(grid[nr][nc])) continue;
 const nk = cellKey(nr,nc);
 if(closed.has(nk)) continue;
 if(clearance[nr][nc] < minClear) continue;
-let extraCost = 0;
-if(occupiedSet.has(nk) && nk !== ek) extraCost = 20;
-if(d>=4) {
-const ar=cur.r+DIRS[d][0], ac=cur.c;
-const br=cur.r, bc=cur.c+DIRS[d][1];
-if(IMPASSABLE.has(grid[ar]?.[ac])||IMPASSABLE.has(grid[br]?.[bc])) continue;
+
+```
+  // HARD BLOCK: idle units are walls (except destination)
+  if(nk !== ek && occupiedSet.has(nk)) continue;
+
+  // SOFT PENALTY: moving units are expensive to path through
+  let extraCost = 0;
+  if(softOccSet && softOccSet.has(nk) && nk !== ek) extraCost = 12;
+
+  if(d>=4) {
+    const ar=cur.r+DIRS[d][0], ac=cur.c;
+    const br=cur.r, bc=cur.c+DIRS[d][1];
+    if(IMPASSABLE.has(grid[ar]?.[ac])||IMPASSABLE.has(grid[br]?.[bc])) continue;
+    // Also block diagonal if adjacent cells occupied
+    const ak = cellKey(ar,ac), bk = cellKey(br,bc);
+    if(occupiedSet.has(ak) || occupiedSet.has(bk)) continue;
+  }
+  const ng = cg + DCOST[d] + extraCost;
+  const prev = gScore.get(nk);
+  if(prev !== undefined && ng >= prev) continue;
+  gScore.set(nk, ng);
+  parent.set(nk, ck);
+  push({r:nr,c:nc,f:ng+heuristic(nr,nc,er,ec)});
 }
-const ng = cg + DCOST[d] + extraCost;
-const prev = gScore.get(nk);
-if(prev !== undefined && ng >= prev) continue;
-gScore.set(nk, ng);
-parent.set(nk, ck);
-push({r:nr,c:nc,f:ng+heuristic(nr,nc,er,ec)});
+```
+
 }
-}
-if(minClear > 1) return astar(grid,clearance,sr,sc,er,ec,1,occupiedSet);
+if(minClear > 1) return astar(grid,clearance,sr,sc,er,ec,1,occupiedSet,softOccSet);
 return null;
 }
 
@@ -185,6 +199,41 @@ let d = b - a;
 while(d > Math.PI) d -= Math.PI*2;
 while(d < -Math.PI) d += Math.PI*2;
 return a + d * Math.min(t, 1);
+}
+
+// ─── Minimap ───
+function drawMinimap(ctx, grid, units, cam, cw, ch) {
+const mw = 120, mh = Math.round(mw * ROWS / COLS);
+const mx = cw - mw - 8, my = 8;
+const sx = mw / COLS, sy = mh / ROWS;
+
+ctx.fillStyle = ‘rgba(0,0,0,0.6)’;
+ctx.fillRect(mx-2, my-2, mw+4, mh+4);
+
+// Terrain
+for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+const t = grid[r][c];
+ctx.fillStyle = TERRAIN_COLORS[t];
+ctx.fillRect(mx+c*sx, my+r*sy, Math.ceil(sx), Math.ceil(sy));
+}
+
+// Units
+for(const u of units){
+ctx.fillStyle = u.state !== ‘idle’ ? ‘#0f0’ : ‘#0c0’;
+const ux = mx + (u.x / CELL) * sx;
+const uy = my + (u.y / CELL) * sy;
+const sz = u.type === ‘tank’ ? 3 : 2;
+ctx.fillRect(ux - sz/2, uy - sz/2, sz, sz);
+}
+
+// Viewport rect
+ctx.strokeStyle = ‘rgba(255,255,255,0.6)’;
+ctx.lineWidth = 1;
+const vx = mx + (cam.x / MAP_W) * mw;
+const vy = my + (cam.y / MAP_H) * mh;
+const vw = (cw / cam.zoom / MAP_W) * mw;
+const vh = (ch / cam.zoom / MAP_H) * mh;
+ctx.strokeRect(vx, vy, vw, vh);
 }
 
 export default function TacticalGame() {
@@ -287,13 +336,27 @@ const resize=()=>{if(containerRef.current)setCSize({w:containerRef.current.clien
 resize(); window.addEventListener(‘resize’,resize); return()=>window.removeEventListener(‘resize’,resize);
 },[]);
 
-function getOccupiedSet(excludeId) {
-const s = new Set();
-const occ = occRef.current;
-for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
-if(occ[r][c] !== -1 && occ[r][c] !== excludeId) s.add(cellKey(r,c));
+// Build two sets:
+// hardBlocked = idle units (they won’t move, treat as walls)
+// softBlocked = moving/waiting units (expensive but passable)
+function getBlockSets(excludeId) {
+const hard = new Set();
+const soft = new Set();
+const units = unitsRef.current;
+for(const u of units) {
+if(u.id === excludeId) continue;
+const ck = cellKey(u.r, u.c);
+if(u.state === ‘idle’) {
+hard.add(ck);
+} else {
+soft.add(ck);
+// Also mark reserved next-cell
+if(u.nextR !== u.r || u.nextC !== u.c) {
+soft.add(cellKey(u.nextR, u.nextC));
 }
-return s;
+}
+}
+return { hard, soft };
 }
 
 function tryClaimCell(unit, nr, nc) {
@@ -332,22 +395,36 @@ ltRef.current = time;
   const units = unitsRef.current;
   const grid = gridRef.current;
   const cl = clearanceRef.current;
-  const occ = occRef.current;
 
+  // ══════ SYNC OCCUPANCY — make sure grid matches reality ══════
+  const occ = occRef.current;
+  // Clear and rebuild to prevent stale entries
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) occ[r][c]=-1;
+  for(const u of units) {
+    occ[u.r][u.c] = u.id;
+    // Also reserve next cell if in transit
+    if(u.state === 'moving_to_cell' && (u.nextR !== u.r || u.nextC !== u.c)) {
+      occ[u.nextR][u.nextC] = u.id;
+    }
+  }
+
+  // ══════ UPDATE UNITS ══════
   for(const u of units) {
     if(u.state === 'idle') continue;
 
     if(u.state === 'waiting') {
       u.waitTime += dt;
-      if(u.waitTime > 0.35) { u.state = 'rerouting'; u.waitTime = 0; }
+      if(u.waitTime > 0.3 + Math.random() * 0.2) {
+        u.state = 'rerouting'; u.waitTime = 0;
+      }
       continue;
     }
 
     if(u.state === 'rerouting') {
       u.reroutes++;
-      if(u.reroutes > 10) { u.state='idle'; u.path=null; u.reroutes=0; continue; }
-      const occSet = getOccupiedSet(u.id);
-      const np = astar(grid, cl, u.r, u.c, u.goalR, u.goalC, u.minClear, occSet);
+      if(u.reroutes > 12) { u.state='idle'; u.path=null; u.reroutes=0; continue; }
+      const {hard, soft} = getBlockSets(u.id);
+      const np = astar(grid, cl, u.r, u.c, u.goalR, u.goalC, u.minClear, hard, soft);
       if(np && np.length > 1) { u.path=np; u.pathIdx=1; u.state='moving_to_cell'; }
       else { u.waitTime=0; u.state='waiting'; }
       continue;
@@ -388,7 +465,7 @@ ltRef.current = time;
     }
   }
 
-  // HARD separation — emergency push if overlap
+  // ══════ HARD SEPARATION — only push MOVER back, never idle units ══════
   for(let i=0;i<units.length;i++){
     for(let j=i+1;j<units.length;j++){
       const a=units[i], b=units[j];
@@ -398,9 +475,24 @@ ltRef.current = time;
       if(dist < minDist && dist > 0.01) {
         const overlap = minDist - dist;
         const nx = dx/dist, ny = dy/dist;
-        const push = overlap * 0.6;
-        a.x -= nx * push; a.y -= ny * push;
-        b.x += nx * push; b.y += ny * push;
+        const push = overlap * 0.7;
+        const aIdle = a.state === 'idle';
+        const bIdle = b.state === 'idle';
+        if(aIdle && bIdle) {
+          // Both idle: gentle mutual push
+          a.x -= nx * push * 0.3; a.y -= ny * push * 0.3;
+          b.x += nx * push * 0.3; b.y += ny * push * 0.3;
+        } else if(aIdle) {
+          // A is idle wall — push B only
+          b.x += nx * push; b.y += ny * push;
+        } else if(bIdle) {
+          // B is idle wall — push A only
+          a.x -= nx * push; a.y -= ny * push;
+        } else {
+          // Both moving — mutual
+          a.x -= nx * push * 0.5; a.y -= ny * push * 0.5;
+          b.x += nx * push * 0.5; b.y += ny * push * 0.5;
+        }
       }
     }
   }
@@ -408,7 +500,7 @@ ltRef.current = time;
   const markers = markersRef.current;
   for(let i=markers.length-1;i>=0;i--){ markers[i].life-=dt; if(markers[i].life<=0) markers.splice(i,1); }
 
-  // RENDER
+  // ══════ RENDER ══════
   ctx.clearRect(0,0,canvas.width,canvas.height);
   ctx.save();
   ctx.scale(cam.zoom,cam.zoom);
@@ -423,7 +515,23 @@ ltRef.current = time;
     ctx.moveTo(m.x,m.y-4);ctx.lineTo(m.x,m.y+4); ctx.stroke();
   }
 
+  // Destination flags
   const sel = selectedRef.current;
+  for(const u of units){
+    if(u.state!=='idle' && u.path){
+      const last = u.path[u.path.length-1];
+      const fx = last.c*CELL+CELL/2, fy = last.r*CELL+CELL/2;
+      ctx.strokeStyle = sel.has(u.id) ? 'rgba(0,255,100,0.5)' : 'rgba(100,200,100,0.2)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(fx,fy); ctx.lineTo(fx,fy-14);
+      ctx.stroke();
+      ctx.fillStyle = sel.has(u.id) ? 'rgba(0,255,100,0.4)' : 'rgba(100,200,100,0.15)';
+      ctx.fillRect(fx, fy-14, 7, 5);
+    }
+  }
+
+  // Path lines for selected
   for(const u of units){
     if(sel.has(u.id)&&u.path&&u.pathIdx<u.path.length){
       ctx.strokeStyle='rgba(0,255,100,0.3)';ctx.lineWidth=1.5;ctx.setLineDash([4,4]);
@@ -445,6 +553,9 @@ ltRef.current = time;
   }
 
   ctx.restore();
+
+  // ══════ MINIMAP (drawn on screen-space, not world-space) ══════
+  drawMinimap(ctx, grid, units, cam, canvas.width, canvas.height);
 };
 rafRef.current = requestAnimationFrame(loop);
 return()=>cancelAnimationFrame(rafRef.current);
@@ -500,27 +611,23 @@ while(queue.length > 0 && targets.length < selUnits.length) {
   }
 }
 
-selUnits.sort((a2,b2)=>{
-  const da=(a2.r-tr)**2+(a2.c-tc)**2;
-  const db=(b2.r-tr)**2+(b2.c-tc)**2;
-  return da-db;
-});
-
-const assignedTargets = new Set();
-for(const u of selUnits) {
-  let bestD = Infinity, bestIdx = 0;
-  for(let t=0;t<targets.length;t++){
-    if(assignedTargets.has(t))continue;
-    const d2=(u.r-targets[t].r)**2+(u.c-targets[t].c)**2;
-    if(d2<bestD){bestD=d2;bestIdx=t;}
-  }
-  assignedTargets.add(bestIdx);
-  const tgt = targets[bestIdx];
-  u.goalR = tgt.r; u.goalC = tgt.c;
-  const occSet = getOccupiedSet(u.id);
-  const path = astar(gridRef.current, clearanceRef.current, u.r, u.c, tgt.r, tgt.c, u.minClear, occSet);
+// Greedy assignment: closest unit to closest target
+const assignedT = new Set();
+const assignedU = new Set();
+const pairs = [];
+for(const u of selUnits) for(let t=0;t<targets.length;t++){
+  pairs.push({u, t, d:(u.r-targets[t].r)**2+(u.c-targets[t].c)**2});
+}
+pairs.sort((a,b)=>a.d-b.d);
+for(const p of pairs){
+  if(assignedU.has(p.u.id)||assignedT.has(p.t))continue;
+  assignedU.add(p.u.id); assignedT.add(p.t);
+  const tgt = targets[p.t];
+  p.u.goalR = tgt.r; p.u.goalC = tgt.c;
+  const {hard,soft} = getBlockSets(p.u.id);
+  const path = astar(gridRef.current, clearanceRef.current, p.u.r, p.u.c, tgt.r, tgt.c, p.u.minClear, hard, soft);
   if(path && path.length > 1){
-    u.path = path; u.pathIdx = 1; u.state='moving_to_cell'; u.waitTime=0; u.reroutes=0;
+    p.u.path = path; p.u.pathIdx = 1; p.u.state='moving_to_cell'; p.u.waitTime=0; p.u.reroutes=0;
   }
 }
 ```
